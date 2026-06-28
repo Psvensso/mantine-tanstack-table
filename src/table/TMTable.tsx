@@ -1,0 +1,578 @@
+import {
+  ActionIcon,
+  Box,
+  type BoxProps,
+  Checkbox,
+  type CheckboxProps,
+  Flex,
+  Loader,
+  Pagination,
+  Select,
+  Table,
+  type TableTrProps,
+  Text,
+} from "@mantine/core";
+import {
+  type Cell,
+  type Column,
+  flexRender,
+  type Row,
+  type RowData,
+  type Table as TanstackTableDef,
+} from "@tanstack/react-table";
+import {
+  type ComponentProps,
+  type CSSProperties,
+  type PropsWithChildren,
+  type ReactNode,
+  type UIEvent,
+  useRef,
+  useState,
+} from "react";
+import classes from "./TMTable.module.css";
+import type { TTableFeatures } from "./features";
+
+// Require certain feature keys, allow any others alongside.
+// Constrains a generic TFeatures so the component works with any superset of the listed keys.
+type WithFeatures<K extends keyof TTableFeatures> = Pick<TTableFeatures, K>;
+
+function commonPinningStyles<
+  TFeatures extends WithFeatures<"columnPinningFeature">,
+  T extends RowData,
+>(column: Column<TFeatures, T>): { style: CSSProperties; className?: string } {
+  const isPinned = column.getIsPinned();
+  const isLastLeftPinnedColumn =
+    isPinned === "left" && column.getIsLastColumn("left");
+  const isFirstRightPinnedColumn =
+    isPinned === "right" && column.getIsFirstColumn("right");
+
+  const isSticky = isLastLeftPinnedColumn || isFirstRightPinnedColumn;
+  let className = isSticky ? classes.tmTableStickyColumn : undefined;
+  if (isLastLeftPinnedColumn) {
+    className = `${className} ${classes.tmTableStickyLeft}`;
+  } else if (isFirstRightPinnedColumn) {
+    className = `${className} ${classes.tmTableStickyRight}`;
+  }
+
+  return {
+    className,
+    style: {
+      left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
+      right: isPinned === "right" ? `${column.getAfter("right")}px` : undefined,
+      backgroundColor: "var(--mantine-color-body)",
+      position: isPinned ? "sticky" : "relative",
+      zIndex: isPinned ? 1 : 0,
+      overflow: "visible",
+      borderBottom: "1px solid var(--mantine-color-default-border)",
+    },
+  };
+}
+
+function RoundedCornerWrapper(p: PropsWithChildren<BoxProps>) {
+  return (
+    <Box
+      sx={(_, s) => ({
+        height: "fit-content",
+        minHeight: 450,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        borderRadius: "5px",
+        border: "1px solid var(--mantine-color-default-border)",
+        [s.light]: {
+          ["th"]: {
+            backgroundColor: "var(--mantine-color-body)",
+          },
+          backgroundColor: "var(--mantine-color-body)",
+        },
+      })}
+      {...p}
+    >
+      {p.children}
+    </Box>
+  );
+}
+
+function TableComponent<
+  TFeatures extends WithFeatures<
+    | "columnSizingFeature"
+    | "columnVisibilityFeature"
+    | "columnFilteringFeature"
+    | "filteredRowModel"
+  >,
+  T extends RowData,
+>({
+  loading,
+  noResultsLabel = "Inga resultat matchar din sökning",
+  table,
+  ...rest
+}: PropsWithChildren<
+  ComponentProps<typeof Table> & {
+    loading?: boolean;
+    noResultsLabel?: string;
+    table: TanstackTableDef<TFeatures, T>;
+  }
+>) {
+  const gridTemplateColumns = table
+    .getVisibleLeafColumns()
+    .map((col) => {
+      return col.columnDef.minSize === col.columnDef.maxSize
+        ? `${col.getSize()}px`
+        : `minmax(${col.columnDef.minSize || 0}px, 1fr)`;
+    })
+    .join(" ");
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrolledLeft, setScrolledLeft] = useState(false);
+  const [scrolledRight, setScrolledRight] = useState(false);
+
+  const handleScroll = (e: UIEvent<HTMLDivElement>) => {
+    const container = e.currentTarget;
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+
+    const hasScrolledLeft = scrollLeft > 0;
+    const hasScrolledRight = scrollLeft < scrollWidth - clientWidth - 1;
+
+    setScrolledLeft(hasScrolledLeft);
+    setScrolledRight(hasScrolledRight);
+  };
+
+  const containerClassName = [
+    classes.tmTableScrollContainer,
+    scrolledLeft ? classes.tmTableScrolledLeft : "",
+    scrolledRight ? classes.tmTableScrolledRight : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const noData = table?.getFilteredRowModel().rows.length === 0;
+  return (
+    <Box
+      ref={scrollContainerRef}
+      className={containerClassName}
+      onScroll={handleScroll}
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflow: "auto",
+      }}
+    >
+      <Table
+        stickyHeader
+        {...rest}
+        sx={{
+          display: "grid",
+          gridTemplateColumns,
+          minWidth: table.getTotalSize(),
+          "tr, tbody, tfoot": {
+            display: "contents",
+          },
+        }}
+      />
+
+      {loading === true && noData && (
+        <Flex
+          direction="column"
+          gap="0"
+          justify="center"
+          align="center"
+          my="xl"
+        >
+          <Loader size="lg" />
+        </Flex>
+      )}
+      {loading === false && noData && (
+        <Flex
+          direction="column"
+          gap="0"
+          justify="center"
+          align="center"
+          my="xl"
+        >
+          <Text
+            fz="3em"
+            component="i"
+            className="fal fa-magnifying-glass"
+          ></Text>
+          <Text fz="lg">{noResultsLabel}</Text>
+        </Flex>
+      )}
+    </Box>
+  );
+}
+
+function THead<
+  TFeatures extends WithFeatures<"columnPinningFeature" | "rowSortingFeature">,
+  T extends RowData,
+>({ table }: { table: TanstackTableDef<TFeatures, T> }) {
+  return (
+    <Table.Thead
+      sx={{
+        display: "contents",
+      }}
+    >
+      {table.getHeaderGroups().map((headerGroup) => (
+        <Table.Tr key={headerGroup.id}>
+          {headerGroup.headers.map((header) => {
+            const isPinned = header.column.getIsPinned();
+            const isLastLeftPinnedColumn =
+              isPinned === "left" && header.column.getIsLastColumn("left");
+            const isFirstRightPinnedColumn =
+              isPinned === "right" && header.column.getIsFirstColumn("right");
+
+            const isSticky = isLastLeftPinnedColumn || isFirstRightPinnedColumn;
+            let className = isSticky ? classes.tmTableStickyColumn : undefined;
+            if (isLastLeftPinnedColumn) {
+              className = `${className} ${classes.tmTableStickyLeft}`;
+            } else if (isFirstRightPinnedColumn) {
+              className = `${className} ${classes.tmTableStickyRight}`;
+            }
+
+            return (
+              <Table.Th
+                data-testid={
+                  header.column.id ? "col-header-" + header.column.id : ""
+                }
+                className={className}
+                title={
+                  header.column.getCanSort()
+                    ? header.column.getNextSortingOrder() === "asc"
+                      ? "Sortera stigande"
+                      : header.column.getNextSortingOrder() === "desc"
+                        ? "Sortera fallande"
+                        : "Ta bort sortering"
+                    : undefined
+                }
+                onClick={header.column.getToggleSortingHandler()}
+                key={header.id}
+                p="xs"
+                sx={{
+                  [":hover"]: {
+                    cursor: "pointer",
+                  },
+                  left:
+                    isPinned === "left"
+                      ? `${header.column.getStart("left")}px`
+                      : undefined,
+                  right:
+                    isPinned === "right"
+                      ? `${header.column.getAfter("right")}px`
+                      : undefined,
+                  backgroundColor: "var(--mantine-color-body)",
+                  overflow: "visible",
+                  borderBottom: "1px solid var(--mantine-color-default-border)",
+                  position: "sticky",
+                  zIndex: isPinned ? 10 : 3,
+                  display: "flex",
+                  alignItems: "center",
+                  top: 0,
+                }}
+              >
+                {header.isPlaceholder ? null : (
+                  <Flex justify="space-between" align="center">
+                    {(header.column.getCanSort() &&
+                      header.column.getIsSorted() && (
+                        <span>
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                        </span>
+                      )) ||
+                      flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+
+                    {header.column.getCanSort() &&
+                      header.column.getIsSorted() && (
+                        <i
+                          className={`sort-icon fa-thin fa-chevron-${header.column.getIsSorted() === "asc" ? "up" : "down"}`}
+                        />
+                      )}
+                  </Flex>
+                )}
+              </Table.Th>
+            );
+          })}
+        </Table.Tr>
+      ))}
+    </Table.Thead>
+  );
+}
+
+function TBodyTd<
+  TFeatures extends WithFeatures<"columnPinningFeature">,
+  T extends RowData,
+>({
+  cell,
+  ...tdProps
+}: { cell: Cell<TFeatures, T> } & ComponentProps<typeof Table.Td>) {
+  const pinningStyles = commonPinningStyles(cell.column);
+  return (
+    <Table.Td
+      {...tdProps}
+      className={pinningStyles.className}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        ...pinningStyles.style,
+      }}
+    >
+      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+    </Table.Td>
+  );
+}
+
+function TBodyTr<
+  TFeatures extends WithFeatures<
+    "columnPinningFeature" | "columnVisibilityFeature"
+  >,
+  T extends RowData,
+>({
+  mih,
+  row,
+  ...trProps
+}: {
+  mih?: TableTrProps["mih"];
+  row: Row<TFeatures, T>;
+}) {
+  return (
+    <Table.Tr
+      key={row.id}
+      sx={{
+        ["&:last-child"]: {
+          boxShadow: "var(--mantine-shadow-sm)",
+        },
+        alignItems: "center",
+      }}
+      {...trProps}
+    >
+      {row.getVisibleCells().map((cell) => {
+        return <TBodyTd key={"cell-td-" + cell.id} cell={cell} mih={mih} />;
+      })}
+    </Table.Tr>
+  );
+}
+
+function ExpandedTBodyTr<
+  TFeatures extends WithFeatures<
+    "rowExpandingFeature" | "columnPinningFeature"
+  >,
+  T extends RowData,
+>({
+  row,
+  children,
+  expandedTopRowConfig,
+  ...trProps
+}: {
+  /**
+   * When expanded each "row" gets two Table.Tr.
+   * This config is for the first row, then the dropdown content is rendered in the second row (children).
+   */
+  expandedTopRowConfig?: {
+    /** Column.Id[] - Visible left cells */
+    visibleLeftColumnIds: string[];
+    /** Column.Id[] - Visible right cells */
+    visibleRightColumnIds: string[];
+    /** Content that should be rendered inside the leftover space in between, rendered inside a Td with full colspan of leftover space */
+    centerCellContent: ReactNode;
+  };
+  rightVisibleCells?: string[];
+  leftVisibleCells?: string[];
+  row: Row<TFeatures, T>;
+} & TableTrProps) {
+  const rowCellRecord = row.getAllCellsByColumnId();
+  const leftCellCount = expandedTopRowConfig?.visibleLeftColumnIds.length || 0;
+  const rightCellCount =
+    expandedTopRowConfig?.visibleRightColumnIds.length || 0;
+  const centerSpan =
+    Object.keys(rowCellRecord).length - leftCellCount - rightCellCount;
+
+  return (
+    row.getIsExpanded() && (
+      <>
+        {expandedTopRowConfig && (
+          <Table.Tr
+            sx={{
+              td: {
+                borderBottom: "1px solid #737373 !important",
+              },
+            }}
+          >
+            {expandedTopRowConfig?.visibleLeftColumnIds.map((cellId) => {
+              const cell = rowCellRecord[cellId];
+              if (!cell) {
+                console.warn(
+                  cellId + " cell id does not exist in visible cells",
+                );
+              }
+              return (
+                <TBodyTd
+                  key={"cell-td-exp-left-" + cell.id}
+                  cell={cell}
+                  mih="52px"
+                />
+              );
+            })}
+            <Table.Td
+              key={"cell-td-exp-center" + row.id}
+              sx={{
+                padding: "var(--table-vertical-spacing) 0",
+                borderBottom: "1px solid var(--mantine-color-default-border)",
+                gridColumn: `span ${centerSpan}`,
+              }}
+            >
+              {expandedTopRowConfig.centerCellContent}
+            </Table.Td>
+            {expandedTopRowConfig?.visibleRightColumnIds.map((cellId) => {
+              const cell = rowCellRecord[cellId];
+              if (!cell) {
+                console.warn(
+                  cellId + " cell id does not exist in visible cells",
+                );
+              }
+              return (
+                <TBodyTd
+                  key={"cell-td-exp-right-" + cell.id}
+                  cell={cell}
+                  mih="52px"
+                />
+              );
+            })}
+          </Table.Tr>
+        )}
+        <Table.Tr
+          key={"sub-" + row.id}
+          sx={{
+            ["&:last-child"]: {
+              boxShadow: "var(--mantine-shadow-sm)",
+            },
+            position: "relative",
+            display: "contents",
+          }}
+          {...trProps}
+        >
+          <Table.Td
+            sx={{
+              padding: 0,
+              borderBottom: "1px solid var(--mantine-color-default-border)",
+              gridColumn: "1 / -1",
+            }}
+          >
+            {children}
+          </Table.Td>
+        </Table.Tr>
+      </>
+    )
+  );
+}
+
+function SelectAllCheckbox<
+  TFeatures extends WithFeatures<"rowSelectionFeature">,
+  T extends RowData,
+>({
+  table,
+  ...checkboxProps
+}: { table: TanstackTableDef<TFeatures, T> } & CheckboxProps) {
+  return (
+    <Checkbox
+      checked={table.getIsAllRowsSelected()}
+      indeterminate={table.getIsSomeRowsSelected()}
+      onChange={table.getToggleAllRowsSelectedHandler()}
+      {...checkboxProps}
+    />
+  );
+}
+
+function SelectRowCheckbox<
+  TFeatures extends WithFeatures<"rowSelectionFeature">,
+  T extends RowData,
+>({ row, ...checkboxProps }: { row: Row<TFeatures, T> } & CheckboxProps) {
+  return (
+    <Checkbox
+      checked={row.getIsSelected()}
+      disabled={!row.getCanSelect()}
+      indeterminate={row.getIsSomeSelected()}
+      onChange={row.getToggleSelectedHandler()}
+      {...checkboxProps}
+    />
+  );
+}
+
+function ExpandRowChevron<
+  TFeatures extends WithFeatures<"rowExpandingFeature">,
+  T extends RowData,
+>({ row }: { row: Row<TFeatures, T> }) {
+  return (
+    <Flex
+      justify="center"
+      align="center"
+      w="100%"
+      h="100%"
+      onClick={row.getToggleExpandedHandler()}
+      sx={{ [":hover"]: { cursor: "pointer" } }}
+      mah="20px"
+    >
+      <ActionIcon mah="20px" size="xl" variant="transparent" w="100%" h="100%">
+        {row.getIsExpanded() ? (
+          <i className="fa-light fa-chevron-up" />
+        ) : (
+          <i className="fa-regular fa-chevron-down" />
+        )}
+      </ActionIcon>
+    </Flex>
+  );
+}
+
+function ClientSidePagination<
+  TFeatures extends WithFeatures<
+    "rowPaginationFeature" | "columnFilteringFeature" | "filteredRowModel"
+  >,
+  T extends RowData,
+>({ table }: { table: TanstackTableDef<TFeatures, T> }) {
+  return (
+    <Flex gap="md">
+      <Flex pt="2px">
+        <Select
+          scrollAreaProps={{
+            type: "never",
+          }}
+          onChange={(v) => {
+            table.setPageSize(v || 25);
+          }}
+          size="xs"
+          value={table.store.state.pagination.pageSize}
+          w="80px"
+          data={[25, 50, 100]}
+        ></Select>
+      </Flex>
+      <Pagination
+        size="md"
+        value={table.store.state.pagination.pageIndex + 1}
+        onChange={(pageIndex) => {
+          table.setPagination((p) => ({
+            ...p,
+            pageIndex: pageIndex - 1,
+          }));
+        }}
+        total={Math.ceil(
+          (table?.getFilteredRowModel().flatRows?.length || 0) /
+            table.store.state.pagination.pageSize,
+        )}
+      />
+    </Flex>
+  );
+}
+
+export const TMTable = {
+  commonPinningStyles,
+  RoundedCornerWrapper,
+  THead,
+  SelectAllCheckbox,
+  SelectRowCheckbox,
+  ExpandRowChevron,
+  TBodyTr,
+  Table: TableComponent,
+  ExpandedTBodyTr: ExpandedTBodyTr,
+  ClientSidePagination,
+};
