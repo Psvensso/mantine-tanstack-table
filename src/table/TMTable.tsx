@@ -46,12 +46,15 @@ type AnyTableFeaturesRecord = Record<string, any>;
 
 function commonPinningStyles<T extends RowData>(
   column: Column<AnyFeatures, T>,
+  table: TanstackTableDef<AnyFeatures, T>,
 ): { style: CSSProperties; className?: string } {
   const isPinned = column.getIsPinned();
+  const leftLeafCols = table.getLeftLeafColumns();
+  const rightLeafCols = table.getRightLeafColumns();
   const isLastLeftPinnedColumn =
-    isPinned === "left" && column.getIsLastColumn("left");
+    isPinned === "left" && leftLeafCols.at(-1)?.id === column.id;
   const isFirstRightPinnedColumn =
-    isPinned === "right" && column.getIsFirstColumn("right");
+    isPinned === "right" && rightLeafCols[0]?.id === column.id;
 
   const isSticky = isLastLeftPinnedColumn || isFirstRightPinnedColumn;
   let className = isSticky ? classes.tmTableStickyColumn : undefined;
@@ -110,7 +113,7 @@ function TableComponent<T extends RowData, TF extends AnyTableFeaturesRecord = A
     .map((col) => {
       return col.columnDef.minSize === col.columnDef.maxSize
         ? `${col.getSize()}px`
-        : `minmax(${col.columnDef.minSize || 0}px, 1fr)`;
+        : `minmax(${col.columnDef.minSize || 0}px, ${col.columnDef.meta?.flex ?? 1}fr)`;
     })
     .join(" ");
 
@@ -173,6 +176,8 @@ function THead<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeature
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const table = tableArg as TanstackTableDef<AnyFeatures, T>;
+  const leftLeafCols = table.getLeftLeafColumns();
+  const rightLeafCols = table.getRightLeafColumns();
   return (
     <Table.Thead style={{ display: "contents" }}>
       {table.getHeaderGroups().map((headerGroup) => (
@@ -180,9 +185,9 @@ function THead<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeature
           {headerGroup.headers.map((header) => {
             const isPinned = header.column.getIsPinned();
             const isLastLeftPinnedColumn =
-              isPinned === "left" && header.column.getIsLastColumn("left");
+              isPinned === "left" && leftLeafCols.at(-1)?.id === header.column.id;
             const isFirstRightPinnedColumn =
-              isPinned === "right" && header.column.getIsFirstColumn("right");
+              isPinned === "right" && rightLeafCols[0]?.id === header.column.id;
 
             const isSticky = isLastLeftPinnedColumn || isFirstRightPinnedColumn;
             let stickyClassName = isSticky
@@ -264,7 +269,11 @@ function TBodyTd<T extends RowData>({
   cell,
   ...tdProps
 }: { cell: Cell<AnyFeatures, T> } & ComponentProps<typeof Table.Td>) {
-  const pinningStyles = commonPinningStyles(cell.column);
+  const pinningStyles = commonPinningStyles(
+    cell.column,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    cell.getContext().table as TanstackTableDef<AnyFeatures, T>,
+  );
   return (
     <Table.Td
       {...tdProps}

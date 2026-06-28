@@ -1,3 +1,4 @@
+import type { RowData } from "@tanstack/react-table";
 import {
   aggregationFns,
   columnFacetingFeature,
@@ -64,3 +65,12 @@ export const features = tableFeatures({
 });
 
 export type TTableFeatures = typeof features;
+
+// Augment TanStack's ColumnMeta so `meta: { flex: 2 }` on a column
+// produces `minmax(minSize, 2fr)` instead of the default `1fr`.
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TFeatures, TData extends RowData, TValue = unknown> {
+    flex?: number;
+  }
+}

@@ -5,6 +5,8 @@ import { ExampleTable2 } from "./ExampleTable2";
 import { ExampleTable3 } from "./ExampleTable3";
 import { ExampleTable4 } from "./ExampleTable4";
 import { ExampleTable5 } from "./ExampleTable5";
+import { ExampleTable6 } from "./ExampleTable6";
+import { ExampleTable7 } from "./ExampleTable7";
 
 const TABS = [
   {
@@ -36,6 +38,18 @@ const TABS = [
     label: "Sales",
     description: "Dynamic column grouping",
     component: ExampleTable5,
+  },
+  {
+    id: "projects",
+    label: "Projects",
+    description: "TMTable2 — div + CSS Subgrid",
+    component: ExampleTable6,
+  },
+  {
+    id: "employees-virtual",
+    label: "Employees (Virtual)",
+    description: "TMTable2 · virtual + dynamic grouping",
+    component: ExampleTable7,
   },
 ] as const;
 

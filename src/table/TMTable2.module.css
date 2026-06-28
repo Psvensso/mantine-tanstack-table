@@ -1,0 +1,89 @@
+.wrapper {
+  height: fit-content;
+  min-height: 450px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 5px;
+  border: 1px solid var(--mantine-color-default-border);
+  background-color: var(--mantine-color-body);
+}
+
+.scrollContainer {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Main grid — column tracks are set via inline gridTemplateColumns */
+.grid {
+  display: grid;
+}
+
+/* Header row: sticky top, spans all column tracks, subgrid for alignment.
+   Rows are real layout boxes (not display:contents), so position:sticky works. */
+.headerRow {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/* Body row: subgrid for column alignment, CSS variable for hover background
+   (inherited by all cells including sticky ones). */
+.bodyRow {
+  --row-bg: var(--mantine-color-body);
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: stretch;
+}
+
+.bodyRow:hover {
+  --row-bg: var(--mantine-color-default-hover);
+}
+
+.headerCell {
+  display: flex;
+  align-items: center;
+  padding: var(--mantine-spacing-xs);
+  font-weight: 600;
+  font-size: var(--mantine-font-size-sm);
+  background-color: var(--mantine-color-body);
+  border-bottom: 2px solid var(--mantine-color-default-border);
+  overflow: visible;
+  user-select: none;
+  white-space: nowrap;
+  min-height: 36px;
+}
+
+.headerCellSortable {
+  cursor: pointer;
+}
+
+.headerCellSortable:hover {
+  background-color: var(--mantine-color-default-hover);
+}
+
+.bodyCell {
+  display: flex;
+  align-items: center;
+  padding: var(--mantine-spacing-xs);
+  overflow: hidden;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  /* --row-bg is set on .bodyRow and inherited here; covers scrolled content for sticky cells */
+  background-color: var(--row-bg);
+  font-size: var(--mantine-font-size-sm);
+}
+
+/* Shadow on the boundary sticky column */
+.stickyLeft {
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.12);
+}
+
+.stickyRight {
+  box-shadow: -2px 0 4px -2px rgba(0, 0, 0, 0.12);
+}
