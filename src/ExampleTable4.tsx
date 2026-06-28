@@ -6,6 +6,7 @@ import {
   columnVisibilityFeature,
   createColumnHelper,
   createSortedRowModel,
+  rowSelectionFeature,
   rowSortingFeature,
   tableFeatures,
   useTable,
@@ -21,6 +22,7 @@ const productFeatures = tableFeatures({
   columnPinningFeature,
   columnVisibilityFeature,
   rowSortingFeature,
+  rowSelectionFeature,
   sortedRowModel: createSortedRowModel(),
 });
 
@@ -37,6 +39,14 @@ type Product = {
 const columnHelper = createColumnHelper<typeof productFeatures, Product>();
 
 const columns = columnHelper.columns([
+  columnHelper.display({
+    id: "select",
+    size: 48,
+    minSize: 48,
+    maxSize: 48,
+    header: ({ table }) => <TMTable.SelectAllCheckbox table={table} size="xs" />,
+    cell: ({ row }) => <TMTable.SelectRowCheckbox row={row} size="xs" />,
+  }),
   columnHelper.accessor("sku", {
     header: "SKU",
     size: 100,
@@ -142,10 +152,10 @@ export function ExampleTable4() {
     data: data ?? [],
     getRowId: (row) => String(row.id),
     enableSorting: true,
-    manualFiltering: true,
-    manualPagination: true,
+    enableRowSelection: true,
     initialState: {
       sorting: [{ id: "name", desc: false }],
+      columnPinning: { left: ["select"], right: [] },
     },
   });
 

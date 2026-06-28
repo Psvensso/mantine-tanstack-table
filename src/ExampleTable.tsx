@@ -17,6 +17,14 @@ type Employee = {
 const columnHelper = createColumnHelper<typeof features, Employee>();
 
 const columns = columnHelper.columns([
+  columnHelper.display({
+    id: "select",
+    size: 48,
+    minSize: 48,
+    maxSize: 48,
+    header: ({ table }) => <TMTable.SelectAllCheckbox table={table} size="xs" />,
+    cell: ({ row }) => <TMTable.SelectRowCheckbox row={row} size="xs" />,
+  }),
   columnHelper.accessor((x) => x.location, {
     header: "ID",
     size: 60,
@@ -358,7 +366,7 @@ export function ExampleTable() {
     data,
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 },
-      columnPinning: { left: ["name"], right: [] },
+      columnPinning: { left: ["select", "name"], right: [] },
       sorting: [{ id: "name", desc: false }],
     },
     state: {
@@ -367,6 +375,7 @@ export function ExampleTable() {
     onGlobalFilterChange: setGlobalFilter,
     enableSorting: true,
     enableGlobalFilter: true,
+    enableRowSelection: true,
   });
 
   return (

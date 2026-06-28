@@ -24,6 +24,14 @@ const columnHelper = createColumnHelper<typeof features, Order>();
 
 const columns = columnHelper.columns([
   columnHelper.display({
+    id: "select",
+    size: 48,
+    minSize: 48,
+    maxSize: 48,
+    header: ({ table }) => <TMTable.SelectAllCheckbox table={table} size="xs" />,
+    cell: ({ row }) => <TMTable.SelectRowCheckbox row={row} size="xs" />,
+  }),
+  columnHelper.display({
     id: "expand",
     size: 48,
     minSize: 48,
@@ -280,9 +288,11 @@ export function ExampleTable2() {
     getRowCanExpand: () => true,
     initialState: {
       sorting: [{ id: "date", desc: true }],
+      columnPinning: { left: ["select"], right: [] },
     },
     enableExpanding: true,
     enableSorting: true,
+    enableRowSelection: true,
   });
 
   return (

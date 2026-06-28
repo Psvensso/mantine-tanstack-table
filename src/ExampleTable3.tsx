@@ -17,6 +17,14 @@ type Employee = {
 const columnHelper = createColumnHelper<typeof features, Employee>();
 
 const columns = columnHelper.columns([
+  columnHelper.display({
+    id: "select",
+    size: 48,
+    minSize: 48,
+    maxSize: 48,
+    header: ({ table }) => <TMTable.SelectAllCheckbox table={table} size="xs" />,
+    cell: ({ row }) => <TMTable.SelectRowCheckbox row={row} size="xs" />,
+  }),
   columnHelper.accessor("name", {
     header: "Name",
     minSize: 180,
@@ -106,10 +114,12 @@ export function ExampleTable3() {
       grouping: ["department"],
       expanded: true,
       sorting: [{ id: "department", desc: false }],
+      columnPinning: { left: ["select"], right: [] },
     },
     enableGrouping: true,
     enableExpanding: true,
     enableSorting: true,
+    enableRowSelection: true,
     manualPagination: true,
     groupedColumnMode: false,
   });

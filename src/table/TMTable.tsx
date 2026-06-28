@@ -33,12 +33,16 @@ import classes from "./TMTable.module.css";
 
 // TanStack Table v9 uses invariant `in out TFeatures`, so Table<FeatA, T> is never
 // assignable to Table<FeatB, T> — even when FeatB is a structural subset of FeatA.
-// The only escape is `any`: IsAny<TFeatures> inside ExtractFeatureMapTypes resolves
-// the deferred conditional and exposes all feature methods on the typed objects.
-// Each table still gets full type safety for its own features at the call site —
-// this type only matters for the TMTable component boundaries.
+// `AnyFeatures = any` lets IsAny<TFeatures> inside ExtractFeatureMapTypes resolve
+// to expose all feature methods inside TMTable components.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyFeatures = any;
+
+// Structural constraint that every concrete `tableFeatures({...})` result satisfies.
+// Used as the upper bound for the generic TF parameters below so TypeScript infers
+// the table type at each call site rather than checking assignability against any.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyTableFeaturesRecord = Record<string, any>;
 
 function commonPinningStyles<T extends RowData>(
   column: Column<AnyFeatures, T>,
@@ -79,18 +83,22 @@ function RoundedCornerWrapper(p: PropsWithChildren<BoxProps>) {
   );
 }
 
-function TableComponent<T extends RowData>({
+function TableComponent<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeatures>({
   loading,
   noResultsLabel = "Inga resultat matchar din sökning",
-  table,
+  table: tableArg,
   ...rest
 }: PropsWithChildren<
   ComponentProps<typeof Table> & {
     loading?: boolean;
     noResultsLabel?: string;
-    table: TanstackTableDef<AnyFeatures, T>;
+    table: TanstackTableDef<TF, T>;
   }
 >) {
+  // Cast once: TF is inferred at the call site (no assignability check against any),
+  // then widened here so all feature methods are accessible inside the component.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const table = tableArg as TanstackTableDef<AnyFeatures, T>;
   // Must match the render order from getHeaderGroups/getVisibleCells:
   // left-pinned → center → right-pinned (not plain getVisibleLeafColumns which uses definition order).
   const orderedColumns = [
@@ -158,11 +166,13 @@ function TableComponent<T extends RowData>({
   );
 }
 
-function THead<T extends RowData>({
-  table,
+function THead<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeatures>({
+  table: tableArg,
 }: {
-  table: TanstackTableDef<AnyFeatures, T>;
+  table: TanstackTableDef<TF, T>;
 }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const table = tableArg as TanstackTableDef<AnyFeatures, T>;
   return (
     <Table.Thead style={{ display: "contents" }}>
       {table.getHeaderGroups().map((headerGroup) => (
@@ -271,14 +281,16 @@ function TBodyTd<T extends RowData>({
   );
 }
 
-function TBodyTr<T extends RowData>({
+function TBodyTr<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeatures>({
   mih,
-  row,
+  row: rowArg,
   ...trProps
 }: {
   mih?: TableTrProps["mih"];
-  row: Row<AnyFeatures, T>;
+  row: Row<TF, T>;
 }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = rowArg as Row<AnyFeatures, T>;
   return (
     <Table.Tr
       key={row.id}
@@ -292,8 +304,8 @@ function TBodyTr<T extends RowData>({
   );
 }
 
-function ExpandedTBodyTr<T extends RowData>({
-  row,
+function ExpandedTBodyTr<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeatures>({
+  row: rowArg,
   children,
   expandedTopRowConfig,
   ...trProps
@@ -312,8 +324,10 @@ function ExpandedTBodyTr<T extends RowData>({
   };
   rightVisibleCells?: string[];
   leftVisibleCells?: string[];
-  row: Row<AnyFeatures, T>;
+  row: Row<TF, T>;
 } & TableTrProps) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = rowArg as Row<AnyFeatures, T>;
   const rowCellRecord = row.getAllCellsByColumnId();
   const leftCellCount = expandedTopRowConfig?.visibleLeftColumnIds.length || 0;
   const rightCellCount =
@@ -388,10 +402,12 @@ function ExpandedTBodyTr<T extends RowData>({
   );
 }
 
-function SelectAllCheckbox<T extends RowData>({
-  table,
+function SelectAllCheckbox<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeatures>({
+  table: tableArg,
   ...checkboxProps
-}: { table: TanstackTableDef<AnyFeatures, T> } & CheckboxProps) {
+}: { table: TanstackTableDef<TF, T> } & CheckboxProps) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const table = tableArg as TanstackTableDef<AnyFeatures, T>;
   return (
     <Checkbox
       checked={table.getIsAllRowsSelected()}
@@ -402,10 +418,12 @@ function SelectAllCheckbox<T extends RowData>({
   );
 }
 
-function SelectRowCheckbox<T extends RowData>({
-  row,
+function SelectRowCheckbox<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeatures>({
+  row: rowArg,
   ...checkboxProps
-}: { row: Row<AnyFeatures, T> } & CheckboxProps) {
+}: { row: Row<TF, T> } & CheckboxProps) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = rowArg as Row<AnyFeatures, T>;
   return (
     <Checkbox
       checked={row.getIsSelected()}
@@ -417,11 +435,13 @@ function SelectRowCheckbox<T extends RowData>({
   );
 }
 
-function ExpandRowChevron<T extends RowData>({
-  row,
+function ExpandRowChevron<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeatures>({
+  row: rowArg,
 }: {
-  row: Row<AnyFeatures, T>;
+  row: Row<TF, T>;
 }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = rowArg as Row<AnyFeatures, T>;
   return (
     <Flex
       justify="center"
@@ -443,11 +463,13 @@ function ExpandRowChevron<T extends RowData>({
   );
 }
 
-function ClientSidePagination<T extends RowData>({
-  table,
+function ClientSidePagination<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeatures>({
+  table: tableArg,
 }: {
-  table: TanstackTableDef<AnyFeatures, T>;
+  table: TanstackTableDef<TF, T>;
 }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const table = tableArg as TanstackTableDef<AnyFeatures, T>;
   return (
     <Flex gap="md">
       <Flex pt="2px">
