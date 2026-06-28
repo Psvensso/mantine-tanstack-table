@@ -1,0 +1,104 @@
+.tmTableWrapper {
+  height: fit-content;
+  min-height: 450px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 5px;
+  border: 1px solid var(--mantine-color-default-border);
+  background-color: var(--mantine-color-body);
+}
+
+.tmTableScrollContainer {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Shadow overlays that appear when the user has scrolled */
+.tmTableScrolledLeft::before,
+.tmTableScrolledRight::after {
+  content: "";
+  position: sticky;
+  top: 0;
+  width: 20px;
+  pointer-events: none;
+  z-index: 5;
+  flex-shrink: 0;
+}
+
+.tmTableScrolledLeft::before {
+  left: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.08), transparent);
+}
+
+.tmTableScrolledRight::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.08), transparent);
+}
+
+/* Makes the Mantine Table element use CSS grid, with tr/tbody/tfoot as grid passthrough */
+.tmTableGrid {
+  display: grid !important;
+}
+
+.tmTableGrid tr,
+.tmTableGrid tbody,
+.tmTableGrid tfoot,
+.tmTableGrid thead {
+  display: contents;
+}
+
+/* Sticky header cell */
+.tmTableTh {
+  cursor: pointer;
+  position: sticky !important;
+  top: 0;
+  display: flex !important;
+  align-items: center;
+  background-color: var(--mantine-color-body);
+  overflow: visible !important;
+  border-bottom: 1px solid var(--mantine-color-default-border) !important;
+}
+
+.tmTableTh:hover {
+  cursor: pointer;
+}
+
+/* Body rows */
+.tmTableBodyTr {
+  align-items: center;
+}
+
+.tmTableBodyTr:last-child {
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+/* Expanded rows */
+.tmTableExpandedTopTr td {
+  border-bottom: 1px solid #737373 !important;
+}
+
+.tmTableSubTr {
+  position: relative;
+  display: contents;
+}
+
+.tmTableSubTr:last-child {
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+/* Sticky column shadows */
+.tmTableStickyColumn {
+  position: sticky;
+  z-index: 1;
+}
+
+.tmTableStickyLeft {
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.12);
+}
+
+.tmTableStickyRight {
+  box-shadow: -2px 0 4px -2px rgba(0, 0, 0, 0.12);
+}

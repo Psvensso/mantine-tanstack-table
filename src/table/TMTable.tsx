@@ -30,16 +30,19 @@ import {
   useState,
 } from "react";
 import classes from "./TMTable.module.css";
-import type { TTableFeatures } from "./features";
 
-// Require certain feature keys, allow any others alongside.
-// Constrains a generic TFeatures so the component works with any superset of the listed keys.
-type WithFeatures<K extends keyof TTableFeatures> = Pick<TTableFeatures, K>;
+// TanStack Table v9 uses invariant `in out TFeatures`, so Table<FeatA, T> is never
+// assignable to Table<FeatB, T> — even when FeatB is a structural subset of FeatA.
+// The only escape is `any`: IsAny<TFeatures> inside ExtractFeatureMapTypes resolves
+// the deferred conditional and exposes all feature methods on the typed objects.
+// Each table still gets full type safety for its own features at the call site —
+// this type only matters for the TMTable component boundaries.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFeatures = any;
 
-function commonPinningStyles<
-  TFeatures extends WithFeatures<"columnPinningFeature">,
-  T extends RowData,
->(column: Column<TFeatures, T>): { style: CSSProperties; className?: string } {
+function commonPinningStyles<T extends RowData>(
+  column: Column<AnyFeatures, T>,
+): { style: CSSProperties; className?: string } {
   const isPinned = column.getIsPinned();
   const isLastLeftPinnedColumn =
     isPinned === "left" && column.getIsLastColumn("left");
@@ -70,38 +73,13 @@ function commonPinningStyles<
 
 function RoundedCornerWrapper(p: PropsWithChildren<BoxProps>) {
   return (
-    <Box
-      sx={(_, s) => ({
-        height: "fit-content",
-        minHeight: 450,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        borderRadius: "5px",
-        border: "1px solid var(--mantine-color-default-border)",
-        [s.light]: {
-          ["th"]: {
-            backgroundColor: "var(--mantine-color-body)",
-          },
-          backgroundColor: "var(--mantine-color-body)",
-        },
-      })}
-      {...p}
-    >
+    <Box className={classes.tmTableWrapper} {...p}>
       {p.children}
     </Box>
   );
 }
 
-function TableComponent<
-  TFeatures extends WithFeatures<
-    | "columnSizingFeature"
-    | "columnVisibilityFeature"
-    | "columnFilteringFeature"
-    | "filteredRowModel"
-  >,
-  T extends RowData,
->({
+function TableComponent<T extends RowData>({
   loading,
   noResultsLabel = "Inga resultat matchar din sökning",
   table,
@@ -110,11 +88,17 @@ function TableComponent<
   ComponentProps<typeof Table> & {
     loading?: boolean;
     noResultsLabel?: string;
-    table: TanstackTableDef<TFeatures, T>;
+    table: TanstackTableDef<AnyFeatures, T>;
   }
 >) {
-  const gridTemplateColumns = table
-    .getVisibleLeafColumns()
+  // Must match the render order from getHeaderGroups/getVisibleCells:
+  // left-pinned → center → right-pinned (not plain getVisibleLeafColumns which uses definition order).
+  const orderedColumns = [
+    ...table.getLeftLeafColumns(),
+    ...table.getCenterLeafColumns(),
+    ...table.getRightLeafColumns(),
+  ];
+  const gridTemplateColumns = orderedColumns
     .map((col) => {
       return col.columnDef.minSize === col.columnDef.maxSize
         ? `${col.getSize()}px`
@@ -129,12 +113,8 @@ function TableComponent<
   const handleScroll = (e: UIEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
     const { scrollLeft, scrollWidth, clientWidth } = container;
-
-    const hasScrolledLeft = scrollLeft > 0;
-    const hasScrolledRight = scrollLeft < scrollWidth - clientWidth - 1;
-
-    setScrolledLeft(hasScrolledLeft);
-    setScrolledRight(hasScrolledRight);
+    setScrolledLeft(scrollLeft > 0);
+    setScrolledRight(scrollLeft < scrollWidth - clientWidth - 1);
   };
 
   const containerClassName = [
@@ -144,55 +124,33 @@ function TableComponent<
   ]
     .filter(Boolean)
     .join(" ");
-  const noData = table?.getFilteredRowModel().rows.length === 0;
+
+  const noData = table?.getRowModel().rows.length === 0;
+
   return (
     <Box
       ref={scrollContainerRef}
       className={containerClassName}
       onScroll={handleScroll}
-      style={{
-        flex: 1,
-        minHeight: 0,
-        overflow: "auto",
-      }}
     >
       <Table
         stickyHeader
         {...rest}
-        sx={{
-          display: "grid",
+        className={classes.tmTableGrid}
+        style={{
           gridTemplateColumns,
           minWidth: table.getTotalSize(),
-          "tr, tbody, tfoot": {
-            display: "contents",
-          },
         }}
       />
 
       {loading === true && noData && (
-        <Flex
-          direction="column"
-          gap="0"
-          justify="center"
-          align="center"
-          my="xl"
-        >
+        <Flex direction="column" gap="0" justify="center" align="center" my="xl">
           <Loader size="lg" />
         </Flex>
       )}
       {loading === false && noData && (
-        <Flex
-          direction="column"
-          gap="0"
-          justify="center"
-          align="center"
-          my="xl"
-        >
-          <Text
-            fz="3em"
-            component="i"
-            className="fal fa-magnifying-glass"
-          ></Text>
+        <Flex direction="column" gap="0" justify="center" align="center" my="xl">
+          <Text fz="3em" component="i" className="fal fa-magnifying-glass" />
           <Text fz="lg">{noResultsLabel}</Text>
         </Flex>
       )}
@@ -200,16 +158,13 @@ function TableComponent<
   );
 }
 
-function THead<
-  TFeatures extends WithFeatures<"columnPinningFeature" | "rowSortingFeature">,
-  T extends RowData,
->({ table }: { table: TanstackTableDef<TFeatures, T> }) {
+function THead<T extends RowData>({
+  table,
+}: {
+  table: TanstackTableDef<AnyFeatures, T>;
+}) {
   return (
-    <Table.Thead
-      sx={{
-        display: "contents",
-      }}
-    >
+    <Table.Thead style={{ display: "contents" }}>
       {table.getHeaderGroups().map((headerGroup) => (
         <Table.Tr key={headerGroup.id}>
           {headerGroup.headers.map((header) => {
@@ -220,19 +175,26 @@ function THead<
               isPinned === "right" && header.column.getIsFirstColumn("right");
 
             const isSticky = isLastLeftPinnedColumn || isFirstRightPinnedColumn;
-            let className = isSticky ? classes.tmTableStickyColumn : undefined;
+            let stickyClassName = isSticky
+              ? classes.tmTableStickyColumn
+              : undefined;
             if (isLastLeftPinnedColumn) {
-              className = `${className} ${classes.tmTableStickyLeft}`;
+              stickyClassName = `${stickyClassName} ${classes.tmTableStickyLeft}`;
             } else if (isFirstRightPinnedColumn) {
-              className = `${className} ${classes.tmTableStickyRight}`;
+              stickyClassName = `${stickyClassName} ${classes.tmTableStickyRight}`;
             }
+
+            const thClassName = [classes.tmTableTh, stickyClassName]
+              .filter(Boolean)
+              .join(" ");
 
             return (
               <Table.Th
+                key={header.id}
                 data-testid={
                   header.column.id ? "col-header-" + header.column.id : ""
                 }
-                className={className}
+                className={thClassName}
                 title={
                   header.column.getCanSort()
                     ? header.column.getNextSortingOrder() === "asc"
@@ -243,12 +205,8 @@ function THead<
                     : undefined
                 }
                 onClick={header.column.getToggleSortingHandler()}
-                key={header.id}
                 p="xs"
-                sx={{
-                  [":hover"]: {
-                    cursor: "pointer",
-                  },
+                style={{
                   left:
                     isPinned === "left"
                       ? `${header.column.getStart("left")}px`
@@ -257,18 +215,11 @@ function THead<
                     isPinned === "right"
                       ? `${header.column.getAfter("right")}px`
                       : undefined,
-                  backgroundColor: "var(--mantine-color-body)",
-                  overflow: "visible",
-                  borderBottom: "1px solid var(--mantine-color-default-border)",
-                  position: "sticky",
                   zIndex: isPinned ? 10 : 3,
-                  display: "flex",
-                  alignItems: "center",
-                  top: 0,
                 }}
               >
                 {header.isPlaceholder ? null : (
-                  <Flex justify="space-between" align="center">
+                  <Flex justify="space-between" align="center" w="100%">
                     {(header.column.getCanSort() &&
                       header.column.getIsSorted() && (
                         <span>
@@ -282,7 +233,6 @@ function THead<
                         header.column.columnDef.header,
                         header.getContext(),
                       )}
-
                     {header.column.getCanSort() &&
                       header.column.getIsSorted() && (
                         <i
@@ -300,13 +250,10 @@ function THead<
   );
 }
 
-function TBodyTd<
-  TFeatures extends WithFeatures<"columnPinningFeature">,
-  T extends RowData,
->({
+function TBodyTd<T extends RowData>({
   cell,
   ...tdProps
-}: { cell: Cell<TFeatures, T> } & ComponentProps<typeof Table.Td>) {
+}: { cell: Cell<AnyFeatures, T> } & ComponentProps<typeof Table.Td>) {
   const pinningStyles = commonPinningStyles(cell.column);
   return (
     <Table.Td
@@ -316,6 +263,7 @@ function TBodyTd<
         display: "flex",
         alignItems: "center",
         ...pinningStyles.style,
+        overflow: "hidden",
       }}
     >
       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -323,28 +271,18 @@ function TBodyTd<
   );
 }
 
-function TBodyTr<
-  TFeatures extends WithFeatures<
-    "columnPinningFeature" | "columnVisibilityFeature"
-  >,
-  T extends RowData,
->({
+function TBodyTr<T extends RowData>({
   mih,
   row,
   ...trProps
 }: {
   mih?: TableTrProps["mih"];
-  row: Row<TFeatures, T>;
+  row: Row<AnyFeatures, T>;
 }) {
   return (
     <Table.Tr
       key={row.id}
-      sx={{
-        ["&:last-child"]: {
-          boxShadow: "var(--mantine-shadow-sm)",
-        },
-        alignItems: "center",
-      }}
+      className={classes.tmTableBodyTr}
       {...trProps}
     >
       {row.getVisibleCells().map((cell) => {
@@ -354,12 +292,7 @@ function TBodyTr<
   );
 }
 
-function ExpandedTBodyTr<
-  TFeatures extends WithFeatures<
-    "rowExpandingFeature" | "columnPinningFeature"
-  >,
-  T extends RowData,
->({
+function ExpandedTBodyTr<T extends RowData>({
   row,
   children,
   expandedTopRowConfig,
@@ -379,7 +312,7 @@ function ExpandedTBodyTr<
   };
   rightVisibleCells?: string[];
   leftVisibleCells?: string[];
-  row: Row<TFeatures, T>;
+  row: Row<AnyFeatures, T>;
 } & TableTrProps) {
   const rowCellRecord = row.getAllCellsByColumnId();
   const leftCellCount = expandedTopRowConfig?.visibleLeftColumnIds.length || 0;
@@ -392,13 +325,7 @@ function ExpandedTBodyTr<
     row.getIsExpanded() && (
       <>
         {expandedTopRowConfig && (
-          <Table.Tr
-            sx={{
-              td: {
-                borderBottom: "1px solid #737373 !important",
-              },
-            }}
-          >
+          <Table.Tr className={classes.tmTableExpandedTopTr}>
             {expandedTopRowConfig?.visibleLeftColumnIds.map((cellId) => {
               const cell = rowCellRecord[cellId];
               if (!cell) {
@@ -416,7 +343,7 @@ function ExpandedTBodyTr<
             })}
             <Table.Td
               key={"cell-td-exp-center" + row.id}
-              sx={{
+              style={{
                 padding: "var(--table-vertical-spacing) 0",
                 borderBottom: "1px solid var(--mantine-color-default-border)",
                 gridColumn: `span ${centerSpan}`,
@@ -443,17 +370,11 @@ function ExpandedTBodyTr<
         )}
         <Table.Tr
           key={"sub-" + row.id}
-          sx={{
-            ["&:last-child"]: {
-              boxShadow: "var(--mantine-shadow-sm)",
-            },
-            position: "relative",
-            display: "contents",
-          }}
+          className={classes.tmTableSubTr}
           {...trProps}
         >
           <Table.Td
-            sx={{
+            style={{
               padding: 0,
               borderBottom: "1px solid var(--mantine-color-default-border)",
               gridColumn: "1 / -1",
@@ -467,13 +388,10 @@ function ExpandedTBodyTr<
   );
 }
 
-function SelectAllCheckbox<
-  TFeatures extends WithFeatures<"rowSelectionFeature">,
-  T extends RowData,
->({
+function SelectAllCheckbox<T extends RowData>({
   table,
   ...checkboxProps
-}: { table: TanstackTableDef<TFeatures, T> } & CheckboxProps) {
+}: { table: TanstackTableDef<AnyFeatures, T> } & CheckboxProps) {
   return (
     <Checkbox
       checked={table.getIsAllRowsSelected()}
@@ -484,10 +402,10 @@ function SelectAllCheckbox<
   );
 }
 
-function SelectRowCheckbox<
-  TFeatures extends WithFeatures<"rowSelectionFeature">,
-  T extends RowData,
->({ row, ...checkboxProps }: { row: Row<TFeatures, T> } & CheckboxProps) {
+function SelectRowCheckbox<T extends RowData>({
+  row,
+  ...checkboxProps
+}: { row: Row<AnyFeatures, T> } & CheckboxProps) {
   return (
     <Checkbox
       checked={row.getIsSelected()}
@@ -499,10 +417,11 @@ function SelectRowCheckbox<
   );
 }
 
-function ExpandRowChevron<
-  TFeatures extends WithFeatures<"rowExpandingFeature">,
-  T extends RowData,
->({ row }: { row: Row<TFeatures, T> }) {
+function ExpandRowChevron<T extends RowData>({
+  row,
+}: {
+  row: Row<AnyFeatures, T>;
+}) {
   return (
     <Flex
       justify="center"
@@ -510,7 +429,7 @@ function ExpandRowChevron<
       w="100%"
       h="100%"
       onClick={row.getToggleExpandedHandler()}
-      sx={{ [":hover"]: { cursor: "pointer" } }}
+      style={{ cursor: "pointer" }}
       mah="20px"
     >
       <ActionIcon mah="20px" size="xl" variant="transparent" w="100%" h="100%">
@@ -524,19 +443,16 @@ function ExpandRowChevron<
   );
 }
 
-function ClientSidePagination<
-  TFeatures extends WithFeatures<
-    "rowPaginationFeature" | "columnFilteringFeature" | "filteredRowModel"
-  >,
-  T extends RowData,
->({ table }: { table: TanstackTableDef<TFeatures, T> }) {
+function ClientSidePagination<T extends RowData>({
+  table,
+}: {
+  table: TanstackTableDef<AnyFeatures, T>;
+}) {
   return (
     <Flex gap="md">
       <Flex pt="2px">
         <Select
-          scrollAreaProps={{
-            type: "never",
-          }}
+          scrollAreaProps={{ type: "never" }}
           onChange={(v) => {
             table.setPageSize(v || 25);
           }}
@@ -544,7 +460,7 @@ function ClientSidePagination<
           value={table.store.state.pagination.pageSize}
           w="80px"
           data={[25, 50, 100]}
-        ></Select>
+        />
       </Flex>
       <Pagination
         size="md"
