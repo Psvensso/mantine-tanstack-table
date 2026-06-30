@@ -7,6 +7,7 @@ import { ExampleTable4 } from "./ExampleTable4";
 import { ExampleTable5 } from "./ExampleTable5";
 import { ExampleTable6 } from "./ExampleTable6";
 import { ExampleTable7 } from "./ExampleTable7";
+import { ExampleVirtuallyGrouped } from "./ExampleVirtuallyGrouped";
 
 const TABS = [
   {
@@ -50,6 +51,12 @@ const TABS = [
     label: "Employees (Virtual)",
     description: "TMTable2 · virtual + dynamic grouping",
     component: ExampleTable7,
+  },
+  {
+    id: "orders-virtual-grouped",
+    label: "Orders (Virtual + Grouped)",
+    description: "TMTable2 · virtual + grouped + details toggle",
+    component: ExampleVirtuallyGrouped,
   },
 ] as const;
 
