@@ -8,6 +8,7 @@ import { ExampleTable5 } from "./ExampleTable5";
 import { ExampleTable6 } from "./ExampleTable6";
 import { ExampleTable7 } from "./ExampleTable7";
 import { ExampleVirtuallyGrouped } from "./ExampleVirtuallyGrouped";
+import { ExampleGroupedPagination } from "./ExampleGroupedPagination";
 
 const TABS = [
   {
@@ -57,6 +58,12 @@ const TABS = [
     label: "Orders (Virtual + Grouped)",
     description: "TMTable2 · virtual + grouped + details toggle",
     component: ExampleVirtuallyGrouped,
+  },
+  {
+    id: "employees-grouped-pagination",
+    label: "Employees (Grouping + Pagination)",
+    description: "TMTable2 · grouping on/off + pagination",
+    component: ExampleGroupedPagination,
   },
 ] as const;
 
