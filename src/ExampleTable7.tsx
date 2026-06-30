@@ -118,6 +118,7 @@ const columns = columnHelper.columns([
     size: 48,
     minSize: 48,
     maxSize: 48,
+    enableResizing: false,
     header: ({ table }) => (
       <TMTable2.SelectAllCheckbox table={table} size="xs" />
     ),
@@ -133,6 +134,7 @@ const columns = columnHelper.columns([
     size: 48,
     minSize: 48,
     maxSize: 48,
+    enableResizing: false,
     // Visual-only chevron — the row container handles the toggle click
     cell: ({ row }) =>
       !row.getIsGrouped() ? (
@@ -217,6 +219,7 @@ export function ExampleTable7() {
     // Required for all rows to be expandable: group rows to show children,
     // leaf rows to show the detail panel. The default only allows rows with sub-rows.
     getRowCanExpand: () => true,
+    columnResizeMode: "onChange",
     enableGrouping: true,
     enableExpanding: true,
     enableSorting: true,

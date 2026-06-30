@@ -47,6 +47,7 @@
 }
 
 .headerCell {
+  position: relative;
   display: flex;
   align-items: center;
   padding: var(--mantine-spacing-xs);
@@ -58,6 +59,25 @@
   user-select: none;
   white-space: nowrap;
   min-height: 36px;
+}
+
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  background: transparent;
+  transition: background 120ms;
+  z-index: 1;
+}
+
+.resizeHandle:hover,
+.resizeHandleActive {
+  background: var(--mantine-color-blue-filled);
 }
 
 .headerCellSortable {

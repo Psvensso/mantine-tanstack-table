@@ -89,6 +89,25 @@
   box-shadow: var(--mantine-shadow-sm);
 }
 
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  background: transparent;
+  transition: background 120ms;
+  z-index: 1;
+}
+
+.resizeHandle:hover,
+.resizeHandleActive {
+  background: var(--mantine-color-blue-filled);
+}
+
 /* Sticky column shadows */
 .tmTableStickyColumn {
   position: sticky;

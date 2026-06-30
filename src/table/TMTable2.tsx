@@ -59,12 +59,15 @@ function TableComponent<T extends RowData, TF extends AnyTableFeaturesRecord = A
     ...table.getCenterLeafColumns(),
     ...table.getRightLeafColumns(),
   ];
+  const columnSizing = (table.store.state.columnSizing ?? {}) as Record<string, number>;
   const gridTemplateColumns = orderedColumns
-    .map((col) =>
-      col.columnDef.minSize === col.columnDef.maxSize
+    .map((col) => {
+      const isFixed = col.columnDef.minSize === col.columnDef.maxSize;
+      const isResized = col.id in columnSizing;
+      return isFixed || isResized
         ? `${col.getSize()}px`
-        : `minmax(${col.columnDef.minSize || 0}px, ${col.columnDef.meta?.flex ?? 1}fr)`,
-    )
+        : `minmax(${col.columnDef.minSize || 0}px, ${col.columnDef.meta?.flex ?? 1}fr)`;
+    })
     .join(" ");
 
   const internalRef = useRef<HTMLDivElement>(null);
@@ -223,6 +226,19 @@ function THead<T extends RowData, TF extends AnyTableFeaturesRecord = AnyFeature
                       />
                     )}
                   </Flex>
+                )}
+                {header.column.getCanResize() && (
+                  <div
+                    className={[
+                      classes.resizeHandle,
+                      header.column.getIsResizing() ? classes.resizeHandleActive : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onMouseDown={(e) => header.getResizeHandler()(e)}
+                    onTouchStart={(e) => header.getResizeHandler()(e)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
                 )}
               </div>
             );
