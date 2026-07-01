@@ -187,6 +187,72 @@ row type at that call site:
   is needed instead of (or alongside) a single shared function — use
   `columnMeta: metaHelper<...>()` on `tableFeatures()` the same way.
 
+## Syncing a wrapper hook's table type with a consuming component
+
+Common shape: a `useMyTable(options)` hook builds the table (and owns the
+`meta`/`renderDetails` wiring), and a separate `<MyTable table={...} />`
+component renders it. Don't hand-write the component's `table` prop type as
+a copy of the hook's generics — derive it with `ReturnType` so the hook stays
+the single source of truth and the two can't drift out of sync.
+
+```ts
+// useMyTable.ts
+export function useMyTable<TData extends RowData>({
+  data,
+  columns,
+  getRowId,
+  renderDetails,
+}: UseMyTableOptions<TData>) {
+  const features = useMemo(() => createFeatures<TData>(), [])
+
+  return useTable({
+    features,
+    columns,
+    data,
+    getRowId,
+    meta: { renderDetails } satisfies MyTableMeta<TData>,
+  })
+}
+
+// Inferred, not hand-written.
+export type MyTableInstance<TData extends RowData> = ReturnType<
+  typeof useMyTable<TData>
+>
+```
+
+```tsx
+// MyTable.tsx
+interface MyTableProps<TData extends RowData> {
+  table: MyTableInstance<TData>
+}
+
+// Trailing comma after TData in a .tsx generic component — otherwise the
+// parser reads <TData> as a JSX tag opening.
+function MyTable<TData extends RowData,>({ table }: MyTableProps<TData>) {
+  /* ... */
+}
+```
+
+```tsx
+// MyComponent.tsx
+function MyComponent() {
+  const table = useMyTable({ data: people, columns, getRowId, renderDetails })
+  return <MyTable table={table} />
+}
+```
+
+`TData` is inferred once where `useMyTable` is called, flows through the
+returned table instance, and `MyTable`'s own `TData` infers from the `table`
+prop — no manual annotation, no duplicated generic parameter lists to keep
+in sync.
+
+**Caveat**: `ReturnType<typeof useMyTable<TData>>` relies on `useMyTable`
+being a plain `function` declaration with an explicit `<TData extends
+RowData>`. If it's converted to an arrow function assigned to a `const`,
+TypeScript can sometimes fail to preserve the generic through `ReturnType`
+— function declarations are the safer choice for hooks whose return type
+needs to be extracted this way.
+
 ## Sources
 
 - TanStack Table v9 beta docs — Table and Column Meta guide
