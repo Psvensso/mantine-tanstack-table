@@ -1,4 +1,5 @@
 import type { RowData } from "@tanstack/react-table";
+import type { ColumnFilterMeta } from "./columnFilters";
 import {
   aggregationFns,
   columnFacetingFeature,
@@ -72,5 +73,7 @@ declare module "@tanstack/react-table" {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TFeatures, TData extends RowData, TValue = unknown> {
     flex?: number;
+    /** Opts a column into the drawer filter UI — see `./columnFilters.tsx`. */
+    filter?: ColumnFilterMeta;
   }
 }

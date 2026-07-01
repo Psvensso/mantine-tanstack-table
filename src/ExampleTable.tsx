@@ -1,6 +1,7 @@
-import { Flex, Table, Text, TextInput } from "@mantine/core";
+import { Button, Drawer, Flex, Table, Text, TextInput } from "@mantine/core";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
+import { TMTableFilters } from "./table/columnFilters";
 import { features } from "./table/features";
 import { TMTable } from "./table/TMTable";
 
@@ -13,74 +14,6 @@ type Employee = {
   salary: number;
   status: "Active" | "On leave" | "Terminated";
 };
-
-const columnHelper = createColumnHelper<typeof features, Employee>();
-
-const columns = columnHelper.columns([
-  columnHelper.display({
-    id: "select",
-    size: 48,
-    minSize: 48,
-    maxSize: 48,
-    header: ({ table }) => <TMTable.SelectAllCheckbox table={table} size="xs" />,
-    cell: ({ row }) => <TMTable.SelectRowCheckbox row={row} size="xs" />,
-  }),
-  columnHelper.accessor((x) => x.location, {
-    header: "ID",
-    size: 60,
-    minSize: 60,
-    maxSize: 60,
-    enableColumnFilter: false,
-  }),
-  columnHelper.accessor("name", {
-    header: "Name",
-    minSize: 180,
-    cell: (info) => (
-      <span style={{ whiteSpace: "nowrap" }}>{info.getValue()}</span>
-    ),
-  }),
-  columnHelper.accessor("department", {
-    header: "Department",
-    minSize: 120,
-  }),
-  columnHelper.accessor("role", {
-    header: "Role",
-    minSize: 150,
-  }),
-  columnHelper.accessor("location", {
-    header: "Location",
-    minSize: 120,
-  }),
-  columnHelper.accessor("salary", {
-    header: "Salary",
-    minSize: 100,
-    cell: (info) =>
-      info.getValue().toLocaleString("sv-SE", {
-        style: "currency",
-        currency: "SEK",
-        maximumFractionDigits: 0,
-      }),
-    enableColumnFilter: false,
-  }),
-  columnHelper.accessor("status", {
-    header: "Status",
-    minSize: 100,
-    cell: (info) => {
-      const value = info.getValue();
-      const color =
-        value === "Active"
-          ? "var(--mantine-color-green-6)"
-          : value === "On leave"
-            ? "var(--mantine-color-yellow-6)"
-            : "var(--mantine-color-red-6)";
-      return (
-        <Text size="sm" fw={500} c={color}>
-          {value}
-        </Text>
-      );
-    },
-  }),
-]);
 
 const DATA: Employee[] = [
   {
@@ -355,8 +288,99 @@ const DATA: Employee[] = [
   },
 ];
 
+// Derived from the data/type, never hand-typed: the drawer filters below stay
+// in sync with whatever values actually exist (or can exist) for each column.
+const DEPARTMENT_OPTIONS = Array.from(
+  new Set(DATA.map((employee) => employee.department)),
+).sort();
+
+const STATUS_OPTIONS = [
+  "Active",
+  "On leave",
+  "Terminated",
+] as const satisfies readonly Employee["status"][];
+
+const SALARY_RANGE = {
+  min: Math.min(...DATA.map((employee) => employee.salary)),
+  max: Math.max(...DATA.map((employee) => employee.salary)),
+};
+
+const columnHelper = createColumnHelper<typeof features, Employee>();
+
+const columns = columnHelper.columns([
+  columnHelper.display({
+    id: "select",
+    size: 48,
+    minSize: 48,
+    maxSize: 48,
+    header: ({ table }) => <TMTable.SelectAllCheckbox table={table} size="xs" />,
+    cell: ({ row }) => <TMTable.SelectRowCheckbox row={row} size="xs" />,
+  }),
+  columnHelper.accessor((x) => x.location, {
+    header: "ID",
+    size: 60,
+    minSize: 60,
+    maxSize: 60,
+    enableColumnFilter: false,
+  }),
+  columnHelper.accessor("name", {
+    header: "Name",
+    minSize: 180,
+    cell: (info) => (
+      <span style={{ whiteSpace: "nowrap" }}>{info.getValue()}</span>
+    ),
+  }),
+  columnHelper.accessor("department", {
+    header: "Department",
+    minSize: 120,
+    filterFn: "equalsString",
+    meta: { filter: { variant: "select", options: DEPARTMENT_OPTIONS } },
+  }),
+  columnHelper.accessor("role", {
+    header: "Role",
+    minSize: 150,
+  }),
+  columnHelper.accessor("location", {
+    header: "Location",
+    minSize: 120,
+  }),
+  columnHelper.accessor("salary", {
+    header: "Salary",
+    minSize: 100,
+    cell: (info) =>
+      info.getValue().toLocaleString("sv-SE", {
+        style: "currency",
+        currency: "SEK",
+        maximumFractionDigits: 0,
+      }),
+    filterFn: "inNumberRange",
+    meta: { filter: { variant: "range", ...SALARY_RANGE } },
+  }),
+  columnHelper.accessor("status", {
+    header: "Status",
+    minSize: 100,
+    filterFn: "equalsString",
+    meta: { filter: { variant: "select", options: [...STATUS_OPTIONS] } },
+    cell: (info) => {
+      const value = info.getValue();
+      const color =
+        value === "Active"
+          ? "var(--mantine-color-green-6)"
+          : value === "On leave"
+            ? "var(--mantine-color-yellow-6)"
+            : "var(--mantine-color-red-6)";
+      return (
+        <Text size="sm" fw={500} c={color}>
+          {value}
+        </Text>
+      );
+    },
+  }),
+]);
+
 export function ExampleTable() {
   const [globalFilter, setGlobalFilter] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const data = useMemo(() => DATA, []);
 
@@ -384,14 +408,29 @@ export function ExampleTable() {
         <Text fw={600} size="lg">
           Employees
         </Text>
-        <TextInput
-          placeholder="Search…"
-          value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.currentTarget.value)}
-          size="sm"
-          w={240}
-        />
+        <Flex gap="sm" align="center">
+          <TMTableFilters.ResetDrawerFiltersButton table={table} />
+          <Button size="xs" variant="default" onClick={() => setFiltersOpen(true)}>
+            Filters
+          </Button>
+          <TextInput
+            placeholder="Search…"
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.currentTarget.value)}
+            size="sm"
+            w={240}
+          />
+        </Flex>
       </Flex>
+
+      <Drawer
+        opened={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filters"
+        position="right"
+      >
+        <TMTableFilters.DrawerColumnFilters table={table} />
+      </Drawer>
 
       <TMTable.RoundedCornerWrapper style={{ flex: 1, minHeight: 0 }}>
         <TMTable.Table table={table} loading={false}>
