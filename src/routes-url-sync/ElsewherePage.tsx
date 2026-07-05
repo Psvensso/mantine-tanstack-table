@@ -14,7 +14,7 @@ export function ElsewherePage() {
         params are passed. The table should restore your last sort/page from
         its local fallback store rather than resetting to defaults.
       </Text>
-      <Link to="/" style={{ width: "fit-content" }}>
+      <Link to="/table-url-sync" style={{ width: "fit-content" }}>
         ← Back to the employees table
       </Link>
     </Flex>

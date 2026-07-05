@@ -1,9 +1,15 @@
 import { Button, Drawer, Flex, Table, Text, TextInput } from "@mantine/core";
+import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
-import { TMTableFilters } from "./table/columnFilters";
-import { features } from "./table/features";
-import { TMTable } from "./table/TMTable";
+import type { ColumnFiltersState } from "@tanstack/react-table";
+import { useSelector } from "@tanstack/react-store";
+import { useState } from "react";
+import { z } from "zod";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { usePageIndexClamp, useTableUrlSync } from "../hooks/useTableUrlSync";
+import { TMTableFilters } from "../table/columnFilters";
+import { features } from "../table/features";
+import { TMTable } from "../table/TMTable";
 
 type Employee = {
   id: number;
@@ -305,6 +311,23 @@ const SALARY_RANGE = {
   max: Math.max(...DATA.map((employee) => employee.salary)),
 };
 
+// "equalsString" columns (department, status) carry a string; the salary
+// "inNumberRange" column carries a [min, max] pair with nullable bounds.
+export const filteringPinningSearch = createTableSearchConfig({
+  defaults: {
+    sorting: [{ id: "name", desc: false }],
+    pagination: { pageIndex: 0, pageSize: 10 },
+    columnFilters: [] as ColumnFiltersState,
+    globalFilter: "",
+  },
+  filterValue: z.union([
+    z.string(),
+    z.tuple([z.number().nullable(), z.number().nullable()]),
+  ]),
+});
+
+const routeApi = getRouteApi("/filtering-pinning");
+
 const columnHelper = createColumnHelper<typeof features, Employee>();
 
 const columns = columnHelper.columns([
@@ -378,29 +401,30 @@ const columns = columnHelper.columns([
   }),
 ]);
 
-export function ExampleTable() {
-  const [globalFilter, setGlobalFilter] = useState("");
+export function FilteringPinningExample() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const data = useMemo(() => DATA, []);
+  const { atoms, tableOptions } = useTableUrlSync({
+    route: routeApi,
+    scope: "examples/filtering-pinning",
+    defaults: filteringPinningSearch.defaults,
+  });
+  const globalFilter = useSelector(atoms.globalFilter);
 
   const table = useTable({
     features,
     columns,
-    data,
+    data: DATA,
     initialState: {
-      pagination: { pageSize: 10, pageIndex: 0 },
       columnPinning: { left: ["select", "name"], right: [] },
-      sorting: [{ id: "name", desc: false }],
     },
-    state: {
-      globalFilter,
-    },
-    onGlobalFilterChange: setGlobalFilter,
     enableSorting: true,
     enableGlobalFilter: true,
     enableRowSelection: true,
+    ...tableOptions,
   });
+
+  usePageIndexClamp(table, atoms.pagination);
 
   return (
     <Flex direction="column" gap="md" p="lg" h="100%">
@@ -416,7 +440,7 @@ export function ExampleTable() {
           <TextInput
             placeholder="Search…"
             value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.currentTarget.value)}
+            onChange={(e) => table.setGlobalFilter(e.currentTarget.value)}
             size="sm"
             w={240}
           />

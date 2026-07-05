@@ -1,43 +1,61 @@
-import { Badge, Flex, Pagination, Select, Switch, Text } from "@mantine/core";
+import { Badge, Flex, SegmentedControl, Text } from "@mantine/core";
+import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
-import { useMemo } from "react";
-import { features } from "./table/features";
-import { TMTable2 } from "./table/TMTable2";
+import { useSelector } from "@tanstack/react-store";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useMemo, useRef } from "react";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { features } from "../table/features";
+import { TMTable2 } from "../table/TMTable2";
 
 type Employee = {
   id: number;
   name: string;
-  department: string;
+  department:
+    | "Engineering"
+    | "Product"
+    | "Design"
+    | "Sales"
+    | "HR"
+    | "Finance"
+    | "Marketing"
+    | "Operations";
   role: string;
-  location: string;
+  location: "Stockholm" | "Göteborg" | "Malmö" | "Remote";
   salary: number;
   status: "Active" | "On leave" | "Terminated";
+  startYear: number;
 };
 
 const FIRST_NAMES = [
   "Anna", "Erik", "Maria", "Lars", "Sofia", "Johan", "Emma", "Anders", "Karin", "Mikael",
   "Lena", "Patrik", "Helena", "Martin", "Cecilia", "Fredrik", "Sara", "Tobias", "Åsa", "Daniel",
+  "Ingrid", "Rickard", "Malin", "Oscar", "Petra", "Christoffer", "Johanna", "Magnus", "Nina", "Andreas",
 ];
 
 const LAST_NAMES = [
   "Lindqvist", "Johansson", "Svensson", "Eriksson", "Karlsson", "Nilsson", "Petersson",
   "Gustafsson", "Magnusson", "Olsson", "Persson", "Björk", "Lundström", "Holm", "Strand",
+  "Lund", "Bergman", "Henriksson", "Lindberg", "Abrahamsson",
 ];
 
-const DEPARTMENTS = ["Engineering", "Product", "Design", "Sales", "HR", "Finance", "Marketing", "Operations"];
+const DEPARTMENTS: Employee["department"][] = [
+  "Engineering", "Product", "Design", "Sales", "HR", "Finance", "Marketing", "Operations",
+];
 
-const ROLES: Record<string, string[]> = {
-  Engineering: ["Engineer", "Senior Engineer", "Tech Lead", "DevOps Engineer"],
-  Product: ["Product Manager", "Product Analyst"],
-  Design: ["UX Designer", "Visual Designer"],
-  Sales: ["Account Executive", "Sales Director"],
-  HR: ["HR Manager", "Recruiter"],
-  Finance: ["Controller", "Financial Analyst"],
-  Marketing: ["Content Strategist", "Marketing Manager"],
-  Operations: ["Operations Manager", "Logistics Coordinator"],
+const ROLES: Record<Employee["department"], string[]> = {
+  Engineering: ["Engineer", "Senior Engineer", "Tech Lead", "Principal Engineer", "DevOps Engineer", "QA Engineer"],
+  Product: ["Product Manager", "Product Analyst", "Head of Product"],
+  Design: ["UX Designer", "Visual Designer", "Product Designer", "UX Lead"],
+  Sales: ["Account Executive", "Sales Director", "SDR", "Account Manager"],
+  HR: ["HR Manager", "Recruiter", "Head of HR"],
+  Finance: ["Controller", "Financial Analyst", "CFO"],
+  Marketing: ["Content Strategist", "Marketing Manager", "Growth Analyst"],
+  Operations: ["Operations Manager", "Logistics Coordinator", "Facilities Manager"],
 };
 
-const LOCATIONS = ["Stockholm", "Göteborg", "Malmö", "Remote"];
+const LOCATIONS: Employee["location"][] = ["Stockholm", "Göteborg", "Malmö", "Remote"];
 
 function generateEmployees(count: number): Employee[] {
   return Array.from({ length: count }, (_, i) => {
@@ -51,10 +69,14 @@ function generateEmployees(count: number): Employee[] {
       location: LOCATIONS[(i * 3 + 1) % LOCATIONS.length],
       salary: 42000 + ((i * 3761 + 17) % 80) * 1000,
       status: i % 10 < 7 ? "Active" : i % 10 < 9 ? "On leave" : "Terminated",
+      startYear: 2018 + (i % 7),
     };
   });
 }
 
+const ROW_HEIGHT = 48;
+// Fixed height for the detail panel — must match EmployeeDetail's rendered height
+// so estimateSize is accurate and the virtualizer doesn't jump.
 const DETAIL_HEIGHT = 68;
 
 function EmployeeDetail({ employee }: { employee: Employee }) {
@@ -63,15 +85,8 @@ function EmployeeDetail({ employee }: { employee: Employee }) {
     ["Role", employee.role],
     ["Department", employee.department],
     ["Location", employee.location],
-    [
-      "Salary",
-      employee.salary.toLocaleString("sv-SE", {
-        style: "currency",
-        currency: "SEK",
-        maximumFractionDigits: 0,
-      }),
-    ],
-    ["Status", employee.status],
+    ["Started", String(employee.startYear)],
+    ["Tenure", `${2026 - employee.startYear} year${2026 - employee.startYear === 1 ? "" : "s"}`],
   ];
   return (
     <div
@@ -89,14 +104,7 @@ function EmployeeDetail({ employee }: { employee: Employee }) {
     >
       {fields.map(([label, value]) => (
         <div key={label}>
-          <Text
-            size="xs"
-            c="dimmed"
-            tt="uppercase"
-            fw={600}
-            mb={2}
-            style={{ letterSpacing: "0.04em" }}
-          >
+          <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={2} style={{ letterSpacing: "0.04em" }}>
             {label}
           </Text>
           <Text size="sm">{value}</Text>
@@ -115,7 +123,10 @@ const columns = columnHelper.columns([
     minSize: 48,
     maxSize: 48,
     enableResizing: false,
-    header: ({ table }) => <TMTable2.SelectAllCheckbox table={table} size="xs" />,
+    header: ({ table }) => (
+      <TMTable2.SelectAllCheckbox table={table} size="xs" />
+    ),
+    // stopPropagation so clicking the checkbox doesn't also toggle row expand
     cell: ({ row }) => (
       <div onClick={(e) => e.stopPropagation()}>
         <TMTable2.SelectRowCheckbox row={row} size="xs" />
@@ -128,7 +139,7 @@ const columns = columnHelper.columns([
     minSize: 48,
     maxSize: 48,
     enableResizing: false,
-    // Visual-only chevron — clicking anywhere on the row toggles details.
+    // Visual-only chevron — the row container handles the toggle click
     cell: ({ row }) =>
       !row.getIsGrouped() ? (
         <Flex justify="center" align="center" w="100%" h="100%">
@@ -150,17 +161,15 @@ const columns = columnHelper.columns([
     enableGrouping: true,
     enableSorting: true,
   }),
-  columnHelper.accessor("role", {
-    header: "Role",
-    minSize: 160,
-  }),
   columnHelper.accessor("location", {
     header: "Location",
     minSize: 120,
+    enableGrouping: true,
+    enableSorting: true,
   }),
   columnHelper.accessor("salary", {
     header: "Salary",
-    minSize: 140,
+    minSize: 130,
     enableSorting: true,
     aggregationFn: "mean",
     cell: (info) =>
@@ -173,56 +182,103 @@ const columns = columnHelper.columns([
   columnHelper.accessor("status", {
     header: "Status",
     minSize: 110,
+    enableGrouping: true,
+    enableSorting: true,
     cell: (info) => {
-      const value = info.getValue();
       const color =
-        value === "Active" ? "green" : value === "On leave" ? "yellow" : "red";
+        info.getValue() === "Active"
+          ? "green"
+          : info.getValue() === "On leave"
+            ? "yellow"
+            : "red";
       return (
         <Badge color={color} variant="light" size="sm">
-          {value}
+          {info.getValue()}
         </Badge>
       );
     },
   }),
+  columnHelper.accessor("startYear", {
+    header: "Started",
+    minSize: 90,
+    enableSorting: true,
+  }),
 ]);
 
-export function ExampleGroupedPagination() {
-  const data = useMemo(() => generateEmployees(60), []);
+const GROUP_BY_OPTIONS = [
+  { value: "department", label: "Department" },
+  { value: "location", label: "Location" },
+  { value: "status", label: "Status" },
+];
+
+// Grouping + sorting sync to the URL; `expanded` deliberately does NOT — at
+// 20 000 rows, per-row detail toggles would bloat the URL for state nobody
+// wants to share.
+export const virtualizedGroupingSearch = createTableSearchConfig({
+  defaults: {
+    grouping: ["department"],
+    sorting: [{ id: "name", desc: false }],
+  },
+});
+
+const routeApi = getRouteApi("/virtualized-grouping");
+
+export function VirtualizedGroupingExample() {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const data = useMemo(() => generateEmployees(20000), []);
+
+  const { atoms, tableOptions } = useTableUrlSync({
+    route: routeApi,
+    scope: "examples/virtualized-grouping",
+    defaults: virtualizedGroupingSearch.defaults,
+  });
 
   const table = useTable({
     features,
     columns,
     data,
     getRowId: (row) => String(row.id),
+    // Required for all rows to be expandable: group rows to show children,
+    // leaf rows to show the detail panel. The default only allows rows with sub-rows.
     getRowCanExpand: () => true,
+    columnResizeMode: "onChange",
     enableGrouping: true,
     enableExpanding: true,
     enableSorting: true,
     enableRowSelection: true,
+    manualPagination: true,
     groupedColumnMode: false,
     initialState: {
-      grouping: ["department"],
       expanded: {},
-      sorting: [{ id: "name", desc: false }],
       columnPinning: { left: ["select"], right: [] },
-      // Grouped starts on a single page showing every group — see setGrouped.
-      pagination: { pageIndex: 0, pageSize: data.length },
     },
+    ...tableOptions,
   });
 
-  const isGrouped = table.store.state.grouping.length > 0;
+  const groupBy = useSelector(atoms.grouping)[0] ?? "department";
   const rows = table.getRowModel().rows;
-  const groupCount = rows.filter((row) => row.getIsGrouped()).length;
 
-  // Grouping and pagination don't combine here: paging would slice through
-  // groups arbitrarily, splitting a group's rows across pages. So grouping
-  // forces a single page (pageSize = all rows) and pagination is disabled;
-  // turning grouping off restores normal pageSize-10 pagination.
-  function setGrouped(grouped: boolean) {
-    table.setGrouping(grouped ? ["department"] : []);
-    table.setExpanded({});
-    table.setPagination({ pageIndex: 0, pageSize: grouped ? data.length : 10 });
-  }
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    // Size depends on row type and expand state.
+    // getItemKey encodes expand state so the cache is invalidated on toggle.
+    estimateSize: (i) => {
+      const row = rows[i];
+      if (!row || row.getIsGrouped()) return ROW_HEIGHT;
+      return row.getIsExpanded() ? ROW_HEIGHT + DETAIL_HEIGHT : ROW_HEIGHT;
+    },
+    getItemKey: (i) => {
+      const row = rows[i];
+      return row ? `${row.id}:${String(row.getIsExpanded())}` : i;
+    },
+    overscan: 8,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const paddingTop = virtualItems[0]?.start ?? 0;
+  const paddingBottom =
+    virtualizer.getTotalSize() - (virtualItems.at(-1)?.end ?? 0);
 
   return (
     <Flex direction="column" gap="md" p="lg" h="100%">
@@ -230,26 +286,45 @@ export function ExampleGroupedPagination() {
         <Text fw={600} size="lg">
           Employees{" "}
           <Text component="span" size="sm" c="dimmed" fw={400}>
-            — 60 rows · grouping on/off + pagination
+            — 20 000 rows · virtual + grouped + expandable
           </Text>
         </Text>
-        <Switch
-          label="Group by department"
-          checked={isGrouped}
-          onChange={(e) => setGrouped(e.currentTarget.checked)}
-        />
+        <Flex align="center" gap="xs">
+          <Text size="sm" c="dimmed">
+            Group by
+          </Text>
+          <SegmentedControl
+            value={groupBy}
+            onChange={(value) => {
+              table.setGrouping([value]);
+              table.setExpanded({});
+            }}
+            data={GROUP_BY_OPTIONS}
+            size="xs"
+          />
+        </Flex>
       </Flex>
 
       <TMTable2.RoundedCornerWrapper style={{ flex: 1, minHeight: 0 }}>
-        <TMTable2.Table table={table} loading={false}>
+        <TMTable2.Table
+          table={table}
+          loading={false}
+          scrollContainerRef={scrollRef}
+        >
           <TMTable2.THead table={table} />
           <TMTable2.TBody>
-            {rows.map((row) => {
+            {paddingTop > 0 && (
+              <div aria-hidden style={{ gridColumn: "1/-1", height: paddingTop }} />
+            )}
+
+            {virtualItems.map((vItem) => {
+              const row = rows[vItem.index];
+
               if (row.getIsGrouped()) {
                 const avgSalary = row.getValue("salary") as number;
                 return (
                   <div
-                    key={row.id}
+                    key={vItem.key}
                     role="row"
                     style={{
                       gridColumn: "1 / -1",
@@ -257,7 +332,7 @@ export function ExampleGroupedPagination() {
                       alignItems: "center",
                       gap: 12,
                       padding: "0 16px",
-                      minHeight: "48px",
+                      height: vItem.size,
                       backgroundColor: "var(--mantine-color-default-hover)",
                       borderBottom: "1px solid var(--mantine-color-default-border)",
                       cursor: "pointer",
@@ -268,7 +343,7 @@ export function ExampleGroupedPagination() {
                       {row.getIsExpanded() ? "▲" : "▼"}
                     </Text>
                     <Text fw={600} size="sm">
-                      {String(row.getValue("department"))}
+                      {String(row.getValue(groupBy))}
                     </Text>
                     <Badge size="sm" variant="light" color="blue">
                       {row.subRows.length} employees
@@ -284,58 +359,35 @@ export function ExampleGroupedPagination() {
                   </div>
                 );
               }
+
               return (
-                // Subgrid wrapper lets the detail panel span full width while the
-                // row above stays aligned to the column tracks.
+                // Row container — clicking anywhere toggles the detail panel.
+                // Height = ROW_HEIGHT when collapsed, ROW_HEIGHT + DETAIL_HEIGHT when expanded.
                 <div
-                  key={row.id}
+                  key={vItem.key}
                   style={{
                     gridColumn: "1 / -1",
                     display: "grid",
                     gridTemplateColumns: "subgrid",
+                    height: vItem.size,
                     cursor: "pointer",
                   }}
                   onClick={row.getToggleExpandedHandler()}
                 >
-                  <TMTable2.TBodyRow row={row} mih="48px" />
+                  <TMTable2.TBodyRow row={row} mih={`${ROW_HEIGHT}px`} />
                   {row.getIsExpanded() && (
                     <EmployeeDetail employee={row.original} />
                   )}
                 </div>
               );
             })}
+
+            {paddingBottom > 0 && (
+              <div aria-hidden style={{ gridColumn: "1/-1", height: paddingBottom }} />
+            )}
           </TMTable2.TBody>
         </TMTable2.Table>
       </TMTable2.RoundedCornerWrapper>
-
-      <Flex justify="space-between" align="center">
-        <Text size="xs" c="dimmed">
-          {isGrouped
-            ? `Showing all ${groupCount} groups (${data.length} employees) · pagination disabled while grouped`
-            : `Page ${table.store.state.pagination.pageIndex + 1} of ${table.getPageCount()} · ${table.getRowCount()} rows`}
-        </Text>
-        <Flex align="center" gap="md">
-          <Select
-            size="xs"
-            w="90px"
-            disabled={isGrouped}
-            value={isGrouped ? "10" : String(table.store.state.pagination.pageSize)}
-            data={["5", "10", "25"]}
-            onChange={(value) => {
-              table.setPageSize(Number(value) || 10);
-              table.setPageIndex(0);
-            }}
-            allowDeselect={false}
-          />
-          <Pagination
-            size="sm"
-            disabled={isGrouped}
-            value={table.store.state.pagination.pageIndex + 1}
-            onChange={(pageIndex) => table.setPageIndex(pageIndex - 1)}
-            total={isGrouped ? 1 : Math.max(1, table.getPageCount())}
-          />
-        </Flex>
-      </Flex>
     </Flex>
   );
 }

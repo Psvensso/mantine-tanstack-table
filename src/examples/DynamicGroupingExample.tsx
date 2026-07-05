@@ -1,8 +1,12 @@
 import { Badge, Flex, SegmentedControl, Table, Text } from "@mantine/core";
+import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
-import { useMemo } from "react";
-import { features } from "./table/features";
-import { TMTable } from "./table/TMTable";
+import type { ExpandedState } from "@tanstack/react-table";
+import { useSelector } from "@tanstack/react-store";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { features } from "../table/features";
+import { TMTable } from "../table/TMTable";
 
 type Sale = {
   id: number;
@@ -121,19 +125,33 @@ const GROUP_BY_OPTIONS = [
   { value: "product",     label: "Product"     },
 ];
 
-export function ExampleTable5() {
-  const data = useMemo(() => DATA, []);
+// The group-by choice is this example's headline state — it's what makes a
+// shared URL interesting — so grouping syncs alongside sorting and the
+// collapsed/expanded groups.
+export const dynamicGroupingSearch = createTableSearchConfig({
+  defaults: {
+    grouping: ["region"],
+    expanded: true as ExpandedState,
+    sorting: [{ id: "amount", desc: true }],
+  },
+});
+
+const routeApi = getRouteApi("/dynamic-grouping");
+
+export function DynamicGroupingExample() {
+  const { atoms, tableOptions } = useTableUrlSync({
+    route: routeApi,
+    scope: "examples/dynamic-grouping",
+    defaults: dynamicGroupingSearch.defaults,
+  });
 
   const table = useTable({
     features,
     columns,
-    data,
+    data: DATA,
     getRowId: (row) => String(row.id),
     initialState: {
-      grouping: ["region"],
-      expanded: true,
       columnPinning: { left: ["select"], right: [] },
-      sorting: [{ id: "amount", desc: true }],
     },
     enableGrouping: true,
     enableExpanding: true,
@@ -141,11 +159,10 @@ export function ExampleTable5() {
     enableRowSelection: true,
     manualPagination: true,
     groupedColumnMode: false,
+    ...tableOptions,
   });
 
-  // Read groupBy from TanStack's own state so the control stays in sync
-  // without needing a separate React useState.
-  const groupBy = table.store.state.grouping[0] ?? "region";
+  const groupBy = useSelector(atoms.grouping)[0] ?? "region";
 
   return (
     <Flex direction="column" gap="md" p="lg" h="100%">

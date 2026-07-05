@@ -1,7 +1,9 @@
 import { Badge, Flex, Loader, Rating, Select, Table, Text, TextInput } from "@mantine/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { getRouteApi } from "@tanstack/react-router";
 import {
   columnPinningFeature,
+  columnResizingFeature,
   columnSizingFeature,
   columnVisibilityFeature,
   createColumnHelper,
@@ -11,14 +13,20 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
-import { TMTable } from "./table/TMTable";
+import { useSelector } from "@tanstack/react-store";
+import { useMemo } from "react";
+import { z } from "zod";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { TMTable } from "../table/TMTable";
 
-// Only the features this table actually uses — no grouping, expanding, selection,
-// filtering, pagination, visibility, ordering, or resizing.
-// columnPinningFeature and columnSizingFeature are required by TMTable's grid layout.
+// Only the features this table actually uses — no grouping, expanding,
+// filtering, pagination, or ordering. columnPinningFeature,
+// columnSizingFeature and columnResizingFeature are required by TMTable's
+// grid layout and header (THead calls column.getCanResize()).
 const productFeatures = tableFeatures({
   columnSizingFeature,
+  columnResizingFeature,
   columnPinningFeature,
   columnVisibilityFeature,
   rowSortingFeature,
@@ -125,13 +133,36 @@ async function fetchProducts(
 
 const CATEGORIES = ["Electronics", "Office", "Accessories"];
 
-export function ExampleTable4() {
-  const [nameFilter, setNameFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+// The server-side filters aren't table state at all — they're plain search
+// params, synced through the same kit via `custom` slices. Only `sorting`
+// lands in `tableOptions.atoms`; `name`/`category` just get URL-synced atoms.
+export const serverSideFilteringSearch = createTableSearchConfig({
+  defaults: {
+    sorting: [{ id: "name", desc: false }],
+  },
+  custom: {
+    name: { schema: z.string(), defaultValue: "" },
+    category: {
+      schema: z.string().nullable(),
+      defaultValue: null as string | null,
+    },
+  },
+});
+
+const routeApi = getRouteApi("/server-side-filtering");
+
+export function ServerSideFilteringExample() {
+  const { atoms, tableOptions } = useTableUrlSync({
+    route: routeApi,
+    scope: "examples/server-side-filtering",
+    defaults: serverSideFilteringSearch.defaults,
+  });
+  const nameFilter = useSelector(atoms.name);
+  const categoryFilter = useSelector(atoms.category);
 
   // Stable filters object used as the query key — only rebuilds when values change.
   // manualFiltering means TanStack Table never touches these values itself;
-  // they live here and drive the server request directly.
+  // they drive the server request directly.
   const filters = useMemo(
     () => ({
       ...(nameFilter ? { name: nameFilter } : {}),
@@ -154,9 +185,9 @@ export function ExampleTable4() {
     enableSorting: true,
     enableRowSelection: true,
     initialState: {
-      sorting: [{ id: "name", desc: false }],
       columnPinning: { left: ["select"], right: [] },
     },
+    ...tableOptions,
   });
 
   return (
@@ -189,14 +220,14 @@ export function ExampleTable4() {
         <TextInput
           placeholder="Filter by name…"
           value={nameFilter}
-          onChange={(e) => setNameFilter(e.currentTarget.value)}
+          onChange={(e) => atoms.name.set(e.currentTarget.value)}
           size="sm"
           style={{ flex: 1 }}
         />
         <Select
           placeholder="All categories"
           value={categoryFilter}
-          onChange={setCategoryFilter}
+          onChange={(value) => atoms.category.set(value)}
           data={CATEGORIES}
           size="sm"
           clearable

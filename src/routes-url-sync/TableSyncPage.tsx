@@ -1,12 +1,23 @@
-import { Badge, Flex, Group, Table, Text } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Drawer,
+  Flex,
+  Group,
+  Table,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useSelector } from "@tanstack/react-store";
+import { useState } from "react";
 import { features } from "../table/features";
 import { TMTable } from "../table/TMTable";
-import { useTableUrlState } from "../hooks/useTableUrlState";
+import { TMTableFilters } from "../table/columnFilters";
+import { useTableUrlSync, usePageIndexClamp } from "../hooks/useTableUrlSync";
 import { getFallback } from "../hooks/tableUrlStateFallback";
-import { EMPLOYEES_DEFAULT_SEARCH } from "./searchSchema";
-import { tableSyncRoute } from "./router";
+import { employeesSearch } from "./searchSchema";
 
 type Employee = {
   id: string;
@@ -17,22 +28,14 @@ type Employee = {
 
 const SCOPE = "table-url-sync/employees";
 
-const columnHelper = createColumnHelper<typeof features, Employee>();
+const routeApi = getRouteApi("/table-url-sync");
 
-const columns = columnHelper.columns([
-  columnHelper.accessor("name", { header: "Name", minSize: 180 }),
-  columnHelper.accessor("department", { header: "Department", minSize: 150 }),
-  columnHelper.accessor("salary", {
-    header: "Salary",
-    minSize: 120,
-    cell: (info) =>
-      info.getValue().toLocaleString("sv-SE", {
-        style: "currency",
-        currency: "SEK",
-        maximumFractionDigits: 0,
-      }),
-  }),
-]);
+const DEPARTMENT_OPTIONS = [
+  "Engineering",
+  "Sales",
+  "Support",
+  "Design",
+] as const satisfies readonly Employee["department"][];
 
 const DATA: Employee[] = [
   { id: "E1", name: "Anna Nilsson", department: "Engineering", salary: 52000 },
@@ -49,10 +52,48 @@ const DATA: Employee[] = [
   { id: "E12", name: "Lars Ahlberg", department: "Support", salary: 37000 },
 ];
 
-function StateSourceBadge({ label, fromUrl }: { label: string; fromUrl: boolean }) {
+const SALARY_RANGE = {
+  min: Math.min(...DATA.map((employee) => employee.salary)),
+  max: Math.max(...DATA.map((employee) => employee.salary)),
+};
+
+const columnHelper = createColumnHelper<typeof features, Employee>();
+
+const columns = columnHelper.columns([
+  columnHelper.accessor("name", { header: "Name", minSize: 180 }),
+  columnHelper.accessor("department", {
+    header: "Department",
+    minSize: 150,
+    filterFn: "equalsString",
+    meta: { filter: { variant: "select", options: [...DEPARTMENT_OPTIONS] } },
+  }),
+  columnHelper.accessor("salary", {
+    header: "Salary",
+    minSize: 120,
+    cell: (info) =>
+      info.getValue().toLocaleString("sv-SE", {
+        style: "currency",
+        currency: "SEK",
+        maximumFractionDigits: 0,
+      }),
+    filterFn: "inNumberRange",
+    meta: { filter: { variant: "range", ...SALARY_RANGE } },
+  }),
+]);
+
+function StateSourceBadge({
+  label,
+  stateKey,
+  fromUrl,
+}: {
+  label: string;
+  /** Key in the synced-state record, e.g. "columnFilters" — not the display label. */
+  stateKey: string;
+  fromUrl: boolean;
+}) {
   const source = fromUrl
     ? "URL"
-    : getFallback(SCOPE, label.toLowerCase()) !== undefined
+    : getFallback(SCOPE, stateKey) !== undefined
       ? "local fallback"
       : "default";
   return (
@@ -66,43 +107,78 @@ function StateSourceBadge({ label, fromUrl }: { label: string; fromUrl: boolean 
 }
 
 export function TableSyncPage() {
-  const search = tableSyncRoute.useSearch();
-  const navigate = tableSyncRoute.useNavigate();
-  const data = useMemo(() => DATA, []);
+  const search = routeApi.useSearch();
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const urlAtoms = useTableUrlState({
+  const { atoms, tableOptions } = useTableUrlSync({
+    route: routeApi,
     scope: SCOPE,
-    search,
-    navigate,
-    defaults: EMPLOYEES_DEFAULT_SEARCH,
+    defaults: employeesSearch.defaults,
   });
+  const globalFilter = useSelector(atoms.globalFilter);
 
   const table = useTable({
     features,
     columns,
-    data,
+    data: DATA,
     enableSorting: true,
-    // Without this, v9's default autoResetPageIndex fires on mount (sorting
-    // going from "nothing yet" to its restored value counts as a change)
-    // and silently resets pageIndex back to the internal default, clobbering
-    // whatever we just restored from the URL/fallback. See the pagination
-    // skill doc's "autoResetPageIndex resets to initialState.pageIndex" note.
-    autoResetPageIndex: false,
-    atoms: {
-      sorting: urlAtoms.sorting,
-      pagination: urlAtoms.pagination,
-    },
+    enableGlobalFilter: true,
+    ...tableOptions,
   });
+
+  usePageIndexClamp(table, atoms.pagination);
 
   return (
     <Flex direction="column" gap="md" p="lg" h="100%">
-      <Text fw={600} size="lg">
-        Employees — URL-synced state
-      </Text>
+      <Flex justify="space-between" align="center">
+        <Text fw={600} size="lg">
+          Employees — URL-synced state
+        </Text>
+        <Flex gap="sm" align="center">
+          <TMTableFilters.ResetDrawerFiltersButton table={table} />
+          <Button size="xs" variant="default" onClick={() => setFiltersOpen(true)}>
+            Filters
+          </Button>
+          <TextInput
+            placeholder="Search…"
+            value={globalFilter}
+            onChange={(e) => table.setGlobalFilter(e.currentTarget.value)}
+            size="sm"
+            w={240}
+          />
+        </Flex>
+      </Flex>
       <Group gap="xs">
-        <StateSourceBadge label="Sorting" fromUrl={search.sorting !== undefined} />
-        <StateSourceBadge label="Pagination" fromUrl={search.pagination !== undefined} />
+        <StateSourceBadge
+          label="Sorting"
+          stateKey="sorting"
+          fromUrl={search.sorting !== undefined}
+        />
+        <StateSourceBadge
+          label="Pagination"
+          stateKey="pagination"
+          fromUrl={search.pagination !== undefined}
+        />
+        <StateSourceBadge
+          label="Filters"
+          stateKey="columnFilters"
+          fromUrl={search.columnFilters !== undefined}
+        />
+        <StateSourceBadge
+          label="Search"
+          stateKey="globalFilter"
+          fromUrl={search.globalFilter !== undefined}
+        />
       </Group>
+
+      <Drawer
+        opened={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filters"
+        position="right"
+      >
+        <TMTableFilters.DrawerColumnFilters table={table} />
+      </Drawer>
 
       <TMTable.RoundedCornerWrapper style={{ flex: 1, minHeight: 0 }}>
         <TMTable.Table table={table} loading={false}>

@@ -1,9 +1,13 @@
 import { Badge, Box, Flex, SegmentedControl, Stack, Text } from "@mantine/core";
+import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
+import { useSelector } from "@tanstack/react-store";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef } from "react";
-import { features } from "./table/features";
-import { TMTable2 } from "./table/TMTable2";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { features } from "../table/features";
+import { TMTable2 } from "../table/TMTable2";
 
 type OrderLine = {
   sku: string;
@@ -207,9 +211,27 @@ const GROUP_BY_OPTIONS = [
   { value: "region", label: "Region" },
 ];
 
-export function ExampleVirtuallyGrouped() {
+// Grouping + sorting sync to the URL; `expanded` deliberately does NOT — at
+// 5 000 rows, per-row detail toggles would bloat the URL for state nobody
+// wants to share.
+export const virtualizedExpandableSearch = createTableSearchConfig({
+  defaults: {
+    grouping: ["status"],
+    sorting: [{ id: "date", desc: true }],
+  },
+});
+
+const routeApi = getRouteApi("/virtualized-expandable");
+
+export function VirtualizedExpandableExample() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const data = useMemo(() => generateOrders(5000), []);
+
+  const { atoms, tableOptions } = useTableUrlSync({
+    route: routeApi,
+    scope: "examples/virtualized-expandable",
+    defaults: virtualizedExpandableSearch.defaults,
+  });
 
   const table = useTable({
     features,
@@ -227,14 +249,13 @@ export function ExampleVirtuallyGrouped() {
     manualPagination: true,
     groupedColumnMode: false,
     initialState: {
-      grouping: ["status"],
       expanded: {},
       columnPinning: { left: ["select"], right: [] },
-      sorting: [{ id: "date", desc: true }],
     },
+    ...tableOptions,
   });
 
-  const groupBy = table.store.state.grouping[0] ?? "status";
+  const groupBy = useSelector(atoms.grouping)[0] ?? "status";
   const rows = table.getRowModel().rows;
 
   const virtualizer = useVirtualizer({

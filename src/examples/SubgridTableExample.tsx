@@ -1,8 +1,10 @@
 import { Badge, Flex, Text } from "@mantine/core";
+import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
-import { useMemo } from "react";
-import { features } from "./table/features";
-import { TMTable2 } from "./table/TMTable2";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { features } from "../table/features";
+import { TMTable2 } from "../table/TMTable2";
 
 type Project = {
   id: string;
@@ -113,21 +115,33 @@ const DATA: Project[] = [
   { id: "PRJ-015", name: "Performance Dashboard",     team: "Frontend", status: "Active",    priority: "High",     budget: 185000, deadline: "2026-09-01" },
 ];
 
-export function ExampleTable6() {
-  const data = useMemo(() => DATA, []);
+export const subgridTableSearch = createTableSearchConfig({
+  defaults: {
+    sorting: [{ id: "deadline", desc: false }],
+  },
+});
+
+const routeApi = getRouteApi("/subgrid-table");
+
+export function SubgridTableExample() {
+  const { tableOptions } = useTableUrlSync({
+    route: routeApi,
+    scope: "examples/subgrid-table",
+    defaults: subgridTableSearch.defaults,
+  });
 
   const table = useTable({
     features,
     columns,
-    data,
+    data: DATA,
     getRowId: (row) => row.id,
     enableSorting: true,
     enableRowSelection: true,
     manualPagination: true,
     initialState: {
-      sorting: [{ id: "deadline", desc: false }],
       columnPinning: { left: ["select"], right: [] },
     },
+    ...tableOptions,
   });
 
   return (

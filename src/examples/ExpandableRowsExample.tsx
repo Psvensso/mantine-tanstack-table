@@ -1,8 +1,12 @@
 import { Badge, Box, Flex, Stack, Table, Text } from "@mantine/core";
+import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
-import { Fragment, useMemo } from "react";
-import { features } from "./table/features";
-import { TMTable } from "./table/TMTable";
+import type { ExpandedState } from "@tanstack/react-table";
+import { Fragment } from "react";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { features } from "../table/features";
+import { TMTable } from "../table/TMTable";
 
 type OrderLine = {
   sku: string;
@@ -277,22 +281,37 @@ function OrderLines({ lines }: { lines: OrderLine[] }) {
   );
 }
 
-export function ExampleTable2() {
-  const data = useMemo(() => DATA, []);
+// Expanded state is keyed by row id (the order id), so a shared URL opens
+// the same order lines.
+export const expandableRowsSearch = createTableSearchConfig({
+  defaults: {
+    sorting: [{ id: "date", desc: true }],
+    expanded: {} as ExpandedState,
+  },
+});
+
+const routeApi = getRouteApi("/expandable-rows");
+
+export function ExpandableRowsExample() {
+  const { tableOptions } = useTableUrlSync({
+    route: routeApi,
+    scope: "examples/expandable-rows",
+    defaults: expandableRowsSearch.defaults,
+  });
 
   const table = useTable({
     features,
     columns,
-    data,
+    data: DATA,
     getRowId: (row) => row.id,
     getRowCanExpand: () => true,
     initialState: {
-      sorting: [{ id: "date", desc: true }],
       columnPinning: { left: ["select"], right: [] },
     },
     enableExpanding: true,
     enableSorting: true,
     enableRowSelection: true,
+    ...tableOptions,
   });
 
   return (

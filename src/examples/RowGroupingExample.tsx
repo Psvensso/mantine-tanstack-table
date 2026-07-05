@@ -1,8 +1,11 @@
 import { Badge, Flex, Table, Text } from "@mantine/core";
+import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
-import { useMemo } from "react";
-import { features } from "./table/features";
-import { TMTable } from "./table/TMTable";
+import type { ExpandedState } from "@tanstack/react-table";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { features } from "../table/features";
+import { TMTable } from "../table/TMTable";
 
 type Employee = {
   id: number;
@@ -102,18 +105,31 @@ const DATA: Employee[] = [
   { id: 30, name: "Andreas Wallin", department: "Engineering", role: "CTO", location: "Stockholm", salary: 125000, status: "Active" },
 ];
 
-export function ExampleTable3() {
-  const data = useMemo(() => DATA, []);
+// Grouping is fixed to department here, so only the collapsible state and
+// sorting are worth sharing. `expanded: true` = every group open.
+export const rowGroupingSearch = createTableSearchConfig({
+  defaults: {
+    sorting: [{ id: "department", desc: false }],
+    expanded: true as ExpandedState,
+  },
+});
+
+const routeApi = getRouteApi("/row-grouping");
+
+export function RowGroupingExample() {
+  const { tableOptions } = useTableUrlSync({
+    route: routeApi,
+    scope: "examples/row-grouping",
+    defaults: rowGroupingSearch.defaults,
+  });
 
   const table = useTable({
     features,
     columns,
-    data,
+    data: DATA,
     getRowId: (row) => String(row.id),
     initialState: {
       grouping: ["department"],
-      expanded: true,
-      sorting: [{ id: "department", desc: false }],
       columnPinning: { left: ["select"], right: [] },
     },
     enableGrouping: true,
@@ -122,6 +138,7 @@ export function ExampleTable3() {
     enableRowSelection: true,
     manualPagination: true,
     groupedColumnMode: false,
+    ...tableOptions,
   });
 
   return (

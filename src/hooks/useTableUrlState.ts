@@ -3,7 +3,7 @@ import { useCreateAtom } from "@tanstack/react-store";
 import { useEffect, useRef } from "react";
 import { getFallback, setFallback } from "./tableUrlStateFallback";
 
-type NavigateFn<TSearch> = (opts: {
+export type NavigateFn<TSearch> = (opts: {
   search: (prev: TSearch) => TSearch;
   replace?: boolean;
 }) => void;
@@ -30,6 +30,36 @@ export type TableUrlAtoms<TDefaults> = {
   [K in keyof TDefaults]: Atom<TDefaults[K]>;
 };
 
+/**
+ * JSON-semantic deep equality: key-order-insensitive, and `undefined` equals
+ * `null` (and equals an absent key) — matching how values round-trip through
+ * the URL's JSON serialization. Table state with `[undefined, 60000]` must
+ * compare equal to the `[null, 60000]` that comes back from the URL.
+ */
+function jsonEqual(a: unknown, b: unknown): boolean {
+  if (a === undefined) a = null;
+  if (b === undefined) b = null;
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) {
+    return false;
+  }
+  const aIsArray = Array.isArray(a);
+  if (aIsArray !== Array.isArray(b)) return false;
+  if (aIsArray) {
+    const arrA = a as unknown[];
+    const arrB = b as unknown[];
+    return (
+      arrA.length === arrB.length && arrA.every((v, i) => jsonEqual(v, arrB[i]))
+    );
+  }
+  const recA = a as Record<string, unknown>;
+  const recB = b as Record<string, unknown>;
+  for (const k of new Set([...Object.keys(recA), ...Object.keys(recB)])) {
+    if (!jsonEqual(recA[k], recB[k])) return false;
+  }
+  return true;
+}
+
 function resolveValue<TDefaults extends Record<string, unknown>>(
   scope: string,
   key: keyof TDefaults & string,
@@ -52,6 +82,11 @@ function resolveValue<TDefaults extends Record<string, unknown>>(
  * URL value, else the module-scoped fallback (survives client-side
  * navigation, not a full reload), else `defaults[key]`.
  *
+ * If any key seeded from the fallback store rather than the URL, the restored
+ * state is written back to the URL on mount (debounced, `replace: true`) so
+ * the address bar immediately reflects what the table shows and stays
+ * shareable after navigating away and back.
+ *
  * See `.agents/skills/table-url-sync/SKILL.md` for the full usage guide.
  */
 export function useTableUrlState<TDefaults extends Record<string, unknown>>(
@@ -59,6 +94,11 @@ export function useTableUrlState<TDefaults extends Record<string, unknown>>(
 ): TableUrlAtoms<TDefaults> {
   const { scope, search, navigate, defaults, debounceMs = 200 } = config;
   const keys = Object.keys(defaults) as (keyof TDefaults & string)[];
+
+  // Fresh `search` for the subscription callbacks below — their effect
+  // deliberately doesn't re-run on search changes.
+  const searchRef = useRef(search);
+  searchRef.current = search;
 
   const atoms = {} as TableUrlAtoms<TDefaults>;
   for (const key of keys) {
@@ -71,27 +111,78 @@ export function useTableUrlState<TDefaults extends Record<string, unknown>>(
     );
   }
 
+  // True while a URL write is owed but hasn't run yet. Seeded once at first
+  // render: did any key seed from the local fallback store rather than the
+  // URL? If so, the restored state must be written back to the URL on mount —
+  // a fallback restore doesn't change any atom, so the subscribe-driven write
+  // below would never fire and the URL would stay bare (unshareable) despite
+  // the table showing restored state. After mount it also survives effect
+  // re-runs (StrictMode remounts, an unstable `navigate` identity): cleanup
+  // cancels the debounce timer, and this flag is what tells the next effect
+  // run to reschedule the write instead of dropping it.
+  const pendingWriteRef = useRef<boolean | null>(null);
+  if (pendingWriteRef.current === null) {
+    pendingWriteRef.current = keys.some(
+      (key) => search[key] === undefined && getFallback(scope, key) !== undefined,
+    );
+  }
+
   // Atom -> fallback store + URL. One shared debounce timer (not one per
   // key) so several slices changing in the same tick (e.g. pageSize also
   // resetting pageIndex) settle into a single navigate() call.
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    const scheduleUrlWrite = () => {
+      pendingWriteRef.current = true;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        // Cleared here, once the write actually runs — not when it's
+        // scheduled. StrictMode mounts effects twice: clearing the flag in
+        // the effect body would leave the second run with nothing to
+        // schedule after the first run's cleanup cancelled the timer.
+        pendingWriteRef.current = false;
+        navigate({
+          replace: true,
+          search: (prev) => {
+            const next = { ...prev };
+            for (const k of keys) next[k] = atoms[k].get();
+            return next;
+          },
+        });
+      }, debounceMs);
+    };
+
+    // Mirror URL-seeded values into the fallback store so the last-seen
+    // state survives navigating away even if the user never changes anything
+    // after opening a deep link. Defaults are deliberately NOT mirrored — a
+    // fresh visit at defaults must leave no trace, so later bare visits stay
+    // bare. (Idempotent on effect re-runs; the subscriptions below keep the
+    // store fresh afterwards.)
+    for (const key of keys) {
+      if (searchRef.current[key] !== undefined) {
+        setFallback(scope, key, atoms[key].get());
+      }
+    }
+
     const subscriptions = keys.map((key) =>
       atoms[key].subscribe(() => {
-        setFallback(scope, key, atoms[key].get());
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-          navigate({
-            replace: true,
-            search: (prev) => {
-              const next = { ...prev };
-              for (const k of keys) next[k] = atoms[k].get();
-              return next;
-            },
-          });
-        }, debounceMs);
+        // The table can write value-equal state with a fresh reference into
+        // an atom (e.g. v9's auto-reset behaviors firing at construction).
+        // Treating those as changes would stamp default values into the URL
+        // on a fresh visit — only real value changes count.
+        const value = atoms[key].get();
+        if (jsonEqual(value, resolveValue(scope, key, searchRef.current, defaults))) {
+          return;
+        }
+        setFallback(scope, key, value);
+        scheduleUrlWrite();
       }),
     );
+
+    if (pendingWriteRef.current) {
+      scheduleUrlWrite();
+    }
+
     return () => {
       subscriptions.forEach((s) => s.unsubscribe());
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -105,7 +196,7 @@ export function useTableUrlState<TDefaults extends Record<string, unknown>>(
   useEffect(() => {
     for (const key of keys) {
       const next = resolveValue(scope, key, search, defaults);
-      if (JSON.stringify(next) !== JSON.stringify(atoms[key].get())) {
+      if (!jsonEqual(next, atoms[key].get())) {
         atoms[key].set(next);
       }
     }

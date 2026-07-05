@@ -1,31 +1,18 @@
 import { z } from "zod";
-import type { PaginationState, SortingState } from "@tanstack/react-table";
+import type { ColumnFiltersState } from "@tanstack/react-table";
+import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
 
-const sortingItemSchema = z.object({
-  id: z.string(),
-  desc: z.boolean(),
+// The filter shapes this page's columns actually produce: "equalsString"
+// columns carry a string, "inNumberRange" columns carry a [min, max] pair.
+export const employeesSearch = createTableSearchConfig({
+  defaults: {
+    sorting: [{ id: "name", desc: false }],
+    pagination: { pageIndex: 0, pageSize: 10 },
+    columnFilters: [] as ColumnFiltersState,
+    globalFilter: "",
+  },
+  filterValue: z.union([
+    z.string(),
+    z.tuple([z.number().nullable(), z.number().nullable()]),
+  ]),
 });
-
-const paginationSchema = z.object({
-  pageIndex: z.number().int().min(0),
-  pageSize: z.number().int().positive(),
-});
-
-// Fields are `.optional()` with no `.default()` — a field absent from the
-// URL must stay `undefined` so `useTableUrlState` can tell "not in the URL"
-// apart from "explicitly set to the default value" and fall back to the
-// local fallback store correctly.
-export const employeesSearchSchema = z.object({
-  sorting: z.array(sortingItemSchema).optional(),
-  pagination: paginationSchema.optional(),
-});
-
-export type EmployeesSearch = z.infer<typeof employeesSearchSchema>;
-
-export const EMPLOYEES_DEFAULT_SEARCH: {
-  sorting: SortingState;
-  pagination: PaginationState;
-} = {
-  sorting: [{ id: "name", desc: false }],
-  pagination: { pageIndex: 0, pageSize: 10 },
-};
