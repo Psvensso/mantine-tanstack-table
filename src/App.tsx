@@ -132,6 +132,18 @@ function App() {
             style={{ borderRadius: "var(--mantine-radius-sm)" }}
           />
         ))}
+        {/*
+          Real anchor, not a tab: this demo lives in its own separate
+          TanStack Router instance mounted at /table-url-sync (see
+          src/main.tsx), so crossing into it is a full navigation.
+        */}
+        <NavLink
+          component="a"
+          href="/table-url-sync"
+          label="URL-Synced Table (new demo)"
+          description="TanStack Router · URL state sync"
+          style={{ borderRadius: "var(--mantine-radius-sm)" }}
+        />
       </nav>
       <main
         style={{
