@@ -3,8 +3,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
 import type { ExpandedState } from "@tanstack/react-table";
 import { Fragment } from "react";
-import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
-import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { createTableSearchConfig, useTableUrlSync } from "../table/url-sync";
 import { features } from "../table/features";
 import { TMTable } from "../table/TMTable";
 

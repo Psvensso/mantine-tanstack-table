@@ -2,8 +2,7 @@ import { Badge, Flex, Pagination, Select, Switch, Text } from "@mantine/core";
 import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
 import { useSelector } from "@tanstack/react-store";
-import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
-import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { createTableSearchConfig, useTableUrlSync } from "../table/url-sync";
 import { features } from "../table/features";
 import { TMTable2 } from "../table/TMTable2";
 

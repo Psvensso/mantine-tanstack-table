@@ -7,7 +7,7 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { AppLayout } from "./AppLayout";
-import { encodeTableUrlSearch } from "./hooks/tableUrlSearchSchema";
+import { encodeSearch } from "./url-state";
 import {
   DynamicGroupingExample,
   dynamicGroupingSearch,
@@ -190,7 +190,7 @@ export const router = createRouter({
   // params (which decodes them back to state shapes) before stringifying, so
   // encoding anywhere earlier gets undone. The route schemas accept both
   // forms, so pre-existing JSON URLs keep working.
-  stringifySearch: (search) => defaultStringifySearch(encodeTableUrlSearch(search)),
+  stringifySearch: (search) => defaultStringifySearch(encodeSearch(search)),
 });
 
 declare module "@tanstack/react-router" {

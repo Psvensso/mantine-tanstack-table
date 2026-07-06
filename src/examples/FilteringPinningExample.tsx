@@ -5,8 +5,11 @@ import type { ColumnFiltersState } from "@tanstack/react-table";
 import { useSelector } from "@tanstack/react-store";
 import { useState } from "react";
 import { z } from "zod";
-import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
-import { usePageIndexClamp, useTableUrlSync } from "../hooks/useTableUrlSync";
+import {
+  createTableSearchConfig,
+  usePageIndexClamp,
+  useTableUrlSync,
+} from "../table/url-sync";
 import { TMTableFilters } from "../table/columnFilters";
 import { features } from "../table/features";
 import { TMTable } from "../table/TMTable";

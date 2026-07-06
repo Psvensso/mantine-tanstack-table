@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ColumnFiltersState } from "@tanstack/react-table";
-import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
+import { createTableSearchConfig } from "../table/url-sync";
 
 // The filter shapes this page's columns actually produce: "equalsString"
 // columns carry a string, "inNumberRange" columns carry a [min, max] pair.

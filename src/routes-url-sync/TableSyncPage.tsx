@@ -15,8 +15,8 @@ import { useState } from "react";
 import { features } from "../table/features";
 import { TMTable } from "../table/TMTable";
 import { TMTableFilters } from "../table/columnFilters";
-import { useTableUrlSync, usePageIndexClamp } from "../hooks/useTableUrlSync";
-import { getFallback } from "../hooks/tableUrlStateFallback";
+import { useTableUrlSync, usePageIndexClamp } from "../table/url-sync";
+import { getFallback } from "../url-state";
 import { employeesSearch } from "./searchSchema";
 
 type Employee = {

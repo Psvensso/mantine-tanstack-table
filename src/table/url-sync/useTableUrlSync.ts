@@ -3,13 +3,13 @@ import type { Atom } from "@tanstack/store";
 import type { PaginationState } from "@tanstack/react-table";
 import { useEffect } from "react";
 import {
-  useTableUrlState,
+  useUrlSyncedState,
   type NavigateFn,
-  type TableUrlAtoms,
-} from "./useTableUrlState";
+  type UrlAtoms,
+} from "../../url-state";
 
 /**
- * Route-facing convenience layer over `useTableUrlState`: give it the route
+ * Table-facing layer over the generic `useUrlSyncedState`: give it the route
  * and a `defaults` object (usually from `createTableSearchConfig`) and it
  * returns the atoms plus a `tableOptions` object to spread into `useTable`.
  *
@@ -24,8 +24,8 @@ import {
 
 // The slice names TanStack Table v9 accepts in `options.atoms`. Keys of
 // `defaults` outside this list (custom search params like a server-side
-// filter input) still get atoms + URL sync, but are excluded from
-// `tableOptions.atoms` since the table has no such state slice.
+// filter input or a UI toggle) still get atoms + URL sync, but are excluded
+// from `tableOptions.atoms` since the table has no such state slice.
 const TABLE_SLICE_KEYS = [
   "sorting",
   "pagination",
@@ -43,7 +43,7 @@ const TABLE_SLICE_KEYS = [
 type TableSliceKey = (typeof TABLE_SLICE_KEYS)[number];
 
 export type TableAtomsOf<TDefaults> = Pick<
-  TableUrlAtoms<TDefaults>,
+  UrlAtoms<TDefaults>,
   Extract<keyof TDefaults, TableSliceKey>
 >;
 
@@ -62,7 +62,7 @@ export function useTableUrlSync<TDefaults extends Record<string, unknown>>(confi
   /** Debounce (ms) before writing a state change back to the URL. Default 200. */
   debounceMs?: number;
 }): {
-  atoms: TableUrlAtoms<TDefaults>;
+  atoms: UrlAtoms<TDefaults>;
   tableOptions: {
     atoms: TableAtomsOf<TDefaults>;
     autoResetPageIndex: false;
@@ -72,7 +72,7 @@ export function useTableUrlSync<TDefaults extends Record<string, unknown>>(confi
   const search = route.useSearch();
   const navigate = route.useNavigate();
 
-  const atoms = useTableUrlState({ scope, search, navigate, defaults, debounceMs });
+  const atoms = useUrlSyncedState({ scope, search, navigate, defaults, debounceMs });
 
   const tableAtoms = {} as Record<string, unknown>;
   for (const key of Object.keys(defaults)) {

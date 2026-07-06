@@ -1,15 +1,15 @@
 import type { Atom } from "@tanstack/store";
 import { useCreateAtom } from "@tanstack/react-store";
 import { useEffect, useRef } from "react";
-import { getFallback, setFallback } from "./tableUrlStateFallback";
+import { getFallback, setFallback } from "./urlStateFallback";
 
 export type NavigateFn<TSearch> = (opts: {
   search: (prev: TSearch) => TSearch;
   replace?: boolean;
 }) => void;
 
-export interface UseTableUrlStateConfig<TDefaults extends Record<string, unknown>> {
-  /** Namespaces the local fallback store, e.g. "table-url-sync/employees". */
+export interface UseUrlSyncedStateConfig<TDefaults extends Record<string, unknown>> {
+  /** Namespaces the local fallback store, e.g. "examples/filtering-pinning". */
   scope: string;
   /** `Route.useSearch()` — a field is `undefined` when absent from the URL. */
   search: Partial<TDefaults>;
@@ -18,23 +18,23 @@ export interface UseTableUrlStateConfig<TDefaults extends Record<string, unknown
   /**
    * Fallback values used when a key is present in neither the URL nor the
    * local fallback store. Must be a stable reference (module-level constant)
-   * across renders — its KEYS are the selector: whichever table-state slices
-   * you list here are the ones that get synced.
+   * across renders — its KEYS are the selector: whichever state slices you
+   * list here are the ones that get synced.
    */
   defaults: TDefaults;
   /** Debounce (ms) before writing a state change back to the URL. Default 200. */
   debounceMs?: number;
 }
 
-export type TableUrlAtoms<TDefaults> = {
+export type UrlAtoms<TDefaults> = {
   [K in keyof TDefaults]: Atom<TDefaults[K]>;
 };
 
 /**
  * JSON-semantic deep equality: key-order-insensitive, and `undefined` equals
  * `null` (and equals an absent key) — matching how values round-trip through
- * the URL's JSON serialization. Table state with `[undefined, 60000]` must
- * compare equal to the `[null, 60000]` that comes back from the URL.
+ * the URL's JSON serialization. State with `[undefined, 60000]` must compare
+ * equal to the `[null, 60000]` that comes back from the URL.
  */
 function jsonEqual(a: unknown, b: unknown): boolean {
   if (a === undefined) a = null;
@@ -73,10 +73,13 @@ function resolveValue<TDefaults extends Record<string, unknown>>(
 }
 
 /**
- * Syncs a chosen slice of TanStack Table v9 state to the URL via TanStack
- * Router search params, using v9's external-atoms mechanism (`options.atoms`)
- * so the table writes through the returned atoms directly — no `on*Change`
- * handlers needed.
+ * Generic hook that syncs a chosen set of state slices to the URL via TanStack
+ * Router search params, using TanStack Store atoms (`useCreateAtom`) as the
+ * shared source of truth. Domain-agnostic: it knows nothing about tables — it
+ * just keeps a record of atoms in sync with `search`, the given `navigate`,
+ * and a module-scoped fallback store. Returns one atom per key of `defaults`,
+ * so any consumer (a table's `options.atoms`, a plain component reading via
+ * `useSelector`, …) can drive and observe the synced state.
  *
  * Resolution order for each key, used only once at mount (to seed the atom):
  * URL value, else the module-scoped fallback (survives client-side
@@ -84,14 +87,14 @@ function resolveValue<TDefaults extends Record<string, unknown>>(
  *
  * If any key seeded from the fallback store rather than the URL, the restored
  * state is written back to the URL on mount (debounced, `replace: true`) so
- * the address bar immediately reflects what the table shows and stays
- * shareable after navigating away and back.
+ * the address bar immediately reflects the restored state and stays shareable
+ * after navigating away and back.
  *
- * See `.agents/skills/table-url-sync/SKILL.md` for the full usage guide.
+ * See `.agents/skills/url-state-sync/SKILL.md` for the full usage guide.
  */
-export function useTableUrlState<TDefaults extends Record<string, unknown>>(
-  config: UseTableUrlStateConfig<TDefaults>,
-): TableUrlAtoms<TDefaults> {
+export function useUrlSyncedState<TDefaults extends Record<string, unknown>>(
+  config: UseUrlSyncedStateConfig<TDefaults>,
+): UrlAtoms<TDefaults> {
   const { scope, search, navigate, defaults, debounceMs = 200 } = config;
   const keys = Object.keys(defaults) as (keyof TDefaults & string)[];
 
@@ -100,7 +103,7 @@ export function useTableUrlState<TDefaults extends Record<string, unknown>>(
   const searchRef = useRef(search);
   searchRef.current = search;
 
-  const atoms = {} as TableUrlAtoms<TDefaults>;
+  const atoms = {} as UrlAtoms<TDefaults>;
   for (const key of keys) {
     // Safe despite looking like a loop-of-hooks: `keys` is derived from
     // `defaults`, which callers must keep referentially stable, so the same
@@ -116,7 +119,7 @@ export function useTableUrlState<TDefaults extends Record<string, unknown>>(
   // URL? If so, the restored state must be written back to the URL on mount —
   // a fallback restore doesn't change any atom, so the subscribe-driven write
   // below would never fire and the URL would stay bare (unshareable) despite
-  // the table showing restored state. After mount it also survives effect
+  // the UI showing restored state. After mount it also survives effect
   // re-runs (StrictMode remounts, an unstable `navigate` identity): cleanup
   // cancels the debounce timer, and this flag is what tells the next effect
   // run to reschedule the write instead of dropping it.
@@ -166,8 +169,8 @@ export function useTableUrlState<TDefaults extends Record<string, unknown>>(
 
     const subscriptions = keys.map((key) =>
       atoms[key].subscribe(() => {
-        // The table can write value-equal state with a fresh reference into
-        // an atom (e.g. v9's auto-reset behaviors firing at construction).
+        // The consumer can write value-equal state with a fresh reference into
+        // an atom (e.g. a table's auto-reset behaviors firing at construction).
         // Treating those as changes would stamp default values into the URL
         // on a fresh visit — only real value changes count.
         const value = atoms[key].get();

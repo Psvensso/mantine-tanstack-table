@@ -16,8 +16,7 @@ import {
 import { useSelector } from "@tanstack/react-store";
 import { useMemo } from "react";
 import { z } from "zod";
-import { createTableSearchConfig } from "../hooks/tableUrlSearchSchema";
-import { useTableUrlSync } from "../hooks/useTableUrlSync";
+import { createTableSearchConfig, useTableUrlSync } from "../table/url-sync";
 import { TMTable } from "../table/TMTable";
 
 // Only the features this table actually uses — no grouping, expanding,
