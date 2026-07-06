@@ -1,9 +1,26 @@
-import { Badge, Box, Flex, Stack, Table, Text } from "@mantine/core";
+import {
+  Badge,
+  Box,
+  Button,
+  Flex,
+  Group,
+  MultiSelect,
+  Stack,
+  Table,
+  Text,
+} from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
 import { getRouteApi } from "@tanstack/react-router";
 import { createColumnHelper, useTable } from "@tanstack/react-table";
 import type { ExpandedState } from "@tanstack/react-table";
-import { Fragment } from "react";
-import { createTableSearchConfig, useTableUrlSync } from "../table/url-sync";
+import { useSelector } from "@tanstack/react-store";
+import { Fragment, useMemo } from "react";
+import { z } from "zod";
+import {
+  createTableSearchConfig,
+  useTableUrlSync,
+  type CustomSlice,
+} from "../table/url-sync";
 import { features } from "../table/features";
 import { TMTable } from "../table/TMTable";
 
@@ -14,12 +31,20 @@ type OrderLine = {
   unitPrice: number;
 };
 
+const ORDER_STATUSES = [
+  "Pending",
+  "Processing",
+  "Shipped",
+  "Delivered",
+  "Cancelled",
+] as const;
+
 type Order = {
   id: string;
   customer: string;
   date: string;
   total: number;
-  status: "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
+  status: (typeof ORDER_STATUSES)[number];
   lines: OrderLine[];
 };
 
@@ -280,28 +305,76 @@ function OrderLines({ lines }: { lines: OrderLine[] }) {
   );
 }
 
-// Expanded state is keyed by row id (the order id), so a shared URL opens
-// the same order lines.
+// Two array-valued custom slices, each with a compact codec so the URL stays
+// readable (`?status=Shipped.Processing&dateRange=2026-06-03_2026-06-10`)
+// instead of percent-encoded JSON. They demonstrate that array/tuple values
+// round-trip through the sync kit like any other slice.
+
+// MultiSelect value: a list of statuses. Joined by "." (URL-safe, and no
+// status contains one).
+const statusSlice: CustomSlice<string[]> = {
+  schema: z.array(z.string()),
+  defaultValue: [],
+  encode: (value) => value.join("."),
+  decode: (raw) => (raw === "" ? [] : raw.split(".")),
+};
+
+// Date-range picker value: a `[from, to]` tuple of ISO date strings (either
+// side null = open bound). Joined by "_"; dates contain no underscore.
+type DateRange = [string | null, string | null];
+const dateRangeSlice: CustomSlice<DateRange> = {
+  schema: z.tuple([z.string().nullable(), z.string().nullable()]),
+  defaultValue: [null, null],
+  encode: ([from, to]) => `${from ?? ""}_${to ?? ""}`,
+  decode: (raw) => {
+    const [from, to] = raw.split("_");
+    return [from || null, to || null];
+  },
+};
+
+// Expanded state is keyed by row id (the order id), so a shared URL opens the
+// same order lines. `status` and `dateRange` are non-table state synced through
+// the same machinery (see the two slices above).
 export const expandableRowsSearch = createTableSearchConfig({
   defaults: {
     sorting: [{ id: "date", desc: true }],
     expanded: {} as ExpandedState,
+  },
+  custom: {
+    status: statusSlice,
+    dateRange: dateRangeSlice,
   },
 });
 
 const routeApi = getRouteApi("/expandable-rows");
 
 export function ExpandableRowsExample() {
-  const { tableOptions } = useTableUrlSync({
+  const { atoms, tableOptions } = useTableUrlSync({
     route: routeApi,
     scope: "examples/expandable-rows",
     defaults: expandableRowsSearch.defaults,
   });
+  const status = useSelector(atoms.status);
+  const dateRange = useSelector(atoms.dateRange);
+
+  // The array-valued URL state drives the visible rows. ISO date strings sort
+  // and compare lexicographically, so string comparison is a valid date range.
+  const data = useMemo(() => {
+    const [from, to] = dateRange;
+    return DATA.filter((order) => {
+      if (status.length > 0 && !status.includes(order.status)) return false;
+      if (from && order.date < from) return false;
+      if (to && order.date > to) return false;
+      return true;
+    });
+  }, [status, dateRange]);
+
+  const hasFilters = status.length > 0 || dateRange[0] !== null || dateRange[1] !== null;
 
   const table = useTable({
     features,
     columns,
-    data: DATA,
+    data,
     getRowId: (row) => row.id,
     getRowCanExpand: () => true,
     initialState: {
@@ -315,8 +388,48 @@ export function ExpandableRowsExample() {
 
   return (
     <Flex direction="column" gap="md" p="lg" h="100%">
-      <Text fw={600} size="lg">
-        Orders
+      <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
+        <Text fw={600} size="lg">
+          Orders
+        </Text>
+        <Group gap="sm" align="flex-end">
+          <MultiSelect
+            label="Status"
+            placeholder={status.length === 0 ? "All statuses" : undefined}
+            data={ORDER_STATUSES as unknown as string[]}
+            value={status}
+            onChange={(value) => atoms.status.set(value)}
+            size="xs"
+            clearable
+            w={240}
+          />
+          <DatePickerInput
+            type="range"
+            label="Order date"
+            placeholder="Any date"
+            value={dateRange}
+            onChange={(value) => atoms.dateRange.set(value as DateRange)}
+            size="xs"
+            clearable
+            miw={220}
+          />
+          {hasFilters && (
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => {
+                atoms.status.set([]);
+                atoms.dateRange.set([null, null]);
+              }}
+            >
+              Clear
+            </Button>
+          )}
+        </Group>
+      </Flex>
+
+      <Text size="xs" c="dimmed">
+        {data.length} of {DATA.length} orders
       </Text>
 
       <TMTable.RoundedCornerWrapper style={{ flex: 1, minHeight: 0 }}>

@@ -34,11 +34,14 @@ type StandardSlices = {
   expanded: ExpandedState;
 };
 
-/** A non-table search param synced through the same machinery (e.g. a server-side filter, a UI toggle). */
-export type CustomSlice<T> = {
-  schema: z.ZodType<T>;
-  defaultValue: T;
-};
+/**
+ * A non-table search param synced through the same machinery (a server-side
+ * filter, a UI toggle, a multiselect, a date range). It's just a `UrlSlice`:
+ * `{ schema, defaultValue }` for a value the router writes readably, plus an
+ * optional `encode`/`decode` pair to keep array/object values compact in the
+ * URL instead of percent-encoded JSON.
+ */
+export type CustomSlice<T> = UrlSlice<T>;
 
 export type TableSearchConfig<TDefaults extends Record<string, unknown>> =
   UrlSyncedStateConfig<TDefaults>;
@@ -108,8 +111,11 @@ export function createTableSearchConfig<
     }
   }
 
+  // Custom slices are already `UrlSlice`s — pass them straight through so any
+  // `encode`/`decode` they carry (e.g. a multiselect or date-range codec) is
+  // registered too.
   for (const [key, slice] of Object.entries(custom ?? {})) {
-    slices[key] = { schema: slice.schema, defaultValue: slice.defaultValue };
+    slices[key] = slice;
   }
 
   return createUrlSyncedStateConfig(slices) as unknown as TableSearchConfig<
