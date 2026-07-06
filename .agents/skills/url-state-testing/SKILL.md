@@ -28,6 +28,21 @@ nothing to do with correctness: percent-encoding, compact/custom encodings,
 param order, and — the classic false-negative — keys that legitimately remain
 in the URL with an empty value (see "Contract gotchas").
 
+Two traps that survive even when you do parse:
+
+- **`searchParams.get()` returns `string | null` — never `undefined`.** So
+  `expect(param(page, "x")).toBeDefined()` passes unconditionally (`null` IS
+  defined) and asserts nothing. Assert the concrete expected value.
+- **Substring-matching the param *value* is still format-coupled and
+  false-positive-prone.** `.toContain("1")` on a pagination param matches
+  pageIndex 1 — and also `0_15`, `21_25`, any digit anywhere. Decode the
+  value the way the app does and assert structurally:
+
+  ```ts
+  const filters = () => JSON.parse(param(page, "columnFilters") ?? "[]");
+  await expect.poll(filters).toContainEqual({ id: "cameraName", value: ["Kamera_A"] });
+  ```
+
 ## The five test patterns
 
 Every URL-state feature is covered by some subset of these. Assert UI state
@@ -95,6 +110,46 @@ Users edit URLs. A garbage value must fall back to defaults:
 await page.goto("/employees?sorting=%%%garbage&pagination=NaN_NaN");
 await expect(dataRows.first()).toBeVisible(); // rendered defaults, no crash
 ```
+
+## Asserting rendered state, robustly
+
+The patterns above all end in "assert the rendered output" — how you do that
+decides whether the suite is trustworthy or flaky:
+
+- **Auto-retrying matchers, not snapshots.** `await expect(dataRows).toHaveCount(25)`
+  retries until it holds; `const n = await dataRows.count(); expect(n)…`
+  asserts a one-shot snapshot and races re-renders. If you genuinely need a
+  range or comparison, poll it: `await expect.poll(() => dataRows.count()).toBe(before)`.
+- **Exact outcomes over ranges.** `toBeGreaterThan(0)` + `toBeLessThanOrEqual(pageSize)`
+  still passes when a filter only half-cleared. With deterministic fixtures,
+  assert the exact count. With non-deterministic data, capture the count
+  before filtering and assert equality after clearing — a real "back to
+  baseline" check.
+- **Define shared locators once.** A rows locator like
+  `page.getByRole("row").filter({ hasNot: page.getByRole("columnheader") })`
+  belongs in one fixture/helper, not re-declared per step — duplicated
+  definitions drift apart when one gets fixed.
+- **Don't couple locators to display copy in one locale.** `getByPlaceholder("Sök träffar")`
+  breaks on copy edits and other locales; prefer `getByRole` with the
+  accessible name from a shared constant, or `data-testid` for
+  copy-churning elements. For dropdown options use
+  `getByRole("option", { name })` — `getByText("Kamera_A")` also matches
+  table cells containing the same text.
+- **Mocked data means exact expectations.** If the test mocks the API with
+  exactly 3 matching rows, assert `toHaveCount(3)` — the exact count is also
+  the correct "filter has applied" synchronization point before iterating
+  rows. A range assertion (`toBeGreaterThan(0)`) on top of a deterministic
+  mock throws away the determinism you paid for, and counting *before* the
+  filter has applied races (rows were already visible pre-filter, so
+  `toBeVisible()` is not a sync point).
+- **No conditional actions.** `if (await button.isVisible()) { … }` silently
+  skips the scenario and stays green. Assert visibility, then act; if the
+  state can genuinely vary, fix the fixture so it can't.
+- **Every step asserts something.** A step containing only comments, or
+  computing a count it never asserts, is green noise — implement it or
+  delete it.
+- **Configure timeouts once.** Set `expect: { timeout: … }` in
+  `playwright.config` instead of sprinkling `{ timeout: 5000 }` per assertion.
 
 ## Contract gotchas (this repo's kit — and common elsewhere)
 
