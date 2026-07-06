@@ -37,8 +37,9 @@ type StandardSlices = {
 /**
  * A non-table search param synced through the same machinery (a server-side
  * filter, a UI toggle, a multiselect, a date range). It's just a `UrlSlice`:
- * `{ schema, defaultValue }` for any JSON-serializable value — the router's
- * blob codec handles serialization wholesale.
+ * `{ schema, defaultValue }` for a value the router writes readably, plus an
+ * optional `encode`/`decode` pair to keep array/object values compact in the
+ * URL instead of percent-encoded JSON.
  */
 export type CustomSlice<T> = UrlSlice<T>;
 
@@ -110,7 +111,9 @@ export function createTableSearchConfig<
     }
   }
 
-  // Custom slices are already `UrlSlice`s — pass them straight through.
+  // Custom slices are already `UrlSlice`s — pass them straight through so any
+  // `encode`/`decode` they carry (e.g. a multiselect or date-range codec) is
+  // registered too.
   for (const [key, slice] of Object.entries(custom ?? {})) {
     slices[key] = slice;
   }

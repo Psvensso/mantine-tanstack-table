@@ -3,10 +3,11 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  defaultStringifySearch,
   redirect,
 } from "@tanstack/react-router";
 import { AppLayout } from "./AppLayout";
-import { parseSearchBlob, stringifySearchBlob } from "./url-state";
+import { encodeSearch } from "./url-state";
 import {
   DynamicGroupingExample,
   dynamicGroupingSearch,
@@ -183,14 +184,13 @@ const routeTree = rootRoute.addChildren([
 export const router = createRouter({
   routeTree,
   history: createBrowserHistory(),
-  // The whole search object travels as one base64url JSON blob (`?_s=…`) —
-  // opaque but exact, no per-slice codec to maintain. Both halves must live
-  // at the router level: navigation re-validates search params (producing
-  // state shapes) before stringifying, so encoding anywhere earlier is
-  // undone. Plain params still parse and win over blob keys, which is what
-  // keeps the legacy `?tab=` redirect above working.
-  parseSearch: parseSearchBlob,
-  stringifySearch: stringifySearchBlob,
+  // Write the table-state slices as compact human-readable strings
+  // (`sorting=-salary.name`, `pagination=1_10`) instead of percent-encoded
+  // JSON. This must live at the router level: navigation re-validates search
+  // params (which decodes them back to state shapes) before stringifying, so
+  // encoding anywhere earlier gets undone. The route schemas accept both
+  // forms, so pre-existing JSON URLs keep working.
+  stringifySearch: (search) => defaultStringifySearch(encodeSearch(search)),
 });
 
 declare module "@tanstack/react-router" {

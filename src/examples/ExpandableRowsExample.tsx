@@ -305,23 +305,31 @@ function OrderLines({ lines }: { lines: OrderLine[] }) {
   );
 }
 
-// Two array-valued custom slices — they demonstrate that array/tuple values
-// round-trip through the sync kit like any other slice. No serialization
-// concerns here: the router's blob codec JSON-round-trips whatever the schema
-// accepts.
+// Two array-valued custom slices, each with a compact codec so the URL stays
+// readable (`?status=Shipped.Processing&dateRange=2026-06-03_2026-06-10`)
+// instead of percent-encoded JSON. They demonstrate that array/tuple values
+// round-trip through the sync kit like any other slice.
 
-// MultiSelect value: a list of statuses.
+// MultiSelect value: a list of statuses. Joined by "." (URL-safe, and no
+// status contains one).
 const statusSlice: CustomSlice<string[]> = {
   schema: z.array(z.string()),
   defaultValue: [],
+  encode: (value) => value.join("."),
+  decode: (raw) => (raw === "" ? [] : raw.split(".")),
 };
 
 // Date-range picker value: a `[from, to]` tuple of ISO date strings (either
-// side null = open bound). Strings, not Date objects — the URL blob is JSON.
+// side null = open bound). Joined by "_"; dates contain no underscore.
 type DateRange = [string | null, string | null];
 const dateRangeSlice: CustomSlice<DateRange> = {
   schema: z.tuple([z.string().nullable(), z.string().nullable()]),
   defaultValue: [null, null],
+  encode: ([from, to]) => `${from ?? ""}_${to ?? ""}`,
+  decode: (raw) => {
+    const [from, to] = raw.split("_");
+    return [from || null, to || null];
+  },
 };
 
 // Expanded state is keyed by row id (the order id), so a shared URL opens the
