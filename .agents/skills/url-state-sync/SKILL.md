@@ -7,10 +7,11 @@ description: How to sync arbitrary React state to the URL as TanStack Router
   back/forward-safe, and per-tab (which rules out localStorage). Core pieces:
   `useUrlSyncedState` (the hook — defaults in, one atom per key out),
   `createUrlSyncedStateConfig` + `UrlSlice` (compose slices into the
-  schema+defaults pair), and `encodeSearch` (compact human-readable URLs via
-  the router's stringifySearch). Lives in `src/url-state/`. For syncing
-  TanStack Table state specifically, see the `table-url-sync` skill, which is
-  one consumer of this kit.
+  schema+defaults pair), and `parseSearchBlob`/`stringifySearchBlob` (the
+  router-level codec: the whole search object travels as one base64url JSON
+  blob param). Lives in `src/url-state/`. For syncing TanStack Table state
+  specifically, see the `table-url-sync` skill, which is one consumer of this
+  kit.
 ---
 
 # Syncing arbitrary state to the URL
@@ -35,24 +36,24 @@ state as ordinary `useState`.
 ## The three pieces
 
 1. **`createUrlSyncedStateConfig(slices)`** → `{ schema, defaults }`. Call at
-   module scope. Each entry of `slices` is a `UrlSlice` (schema + default +
-   optional compact codec). `schema` goes to the route's `validateSearch`;
-   `defaults` goes to the hook. One declaration feeds both — the schema has to
-   exist at the route (module load, outside React), separate from the
-   component, so this is what keeps them in sync.
+   module scope. Each entry of `slices` is a `UrlSlice` (schema + default).
+   `schema` goes to the route's `validateSearch`; `defaults` goes to the hook.
+   One declaration feeds both — the schema has to exist at the route (module
+   load, outside React), separate from the component, so this is what keeps
+   them in sync.
 2. **`useUrlSyncedState({ scope, search, navigate, defaults })`** → one atom
    per key of `defaults`. It seeds each atom (URL → fallback → default),
    mirrors changes back to the URL (debounced) and the fallback store, and
    applies URL changes onto the atoms. It creates the atoms (rather than
    receiving them) because their initial value must be resolved from the URL.
-3. **`encodeSearch`** → wire into the router once as
-   `stringifySearch: (s) => defaultStringifySearch(encodeSearch(s))` for
-   compact URLs (see "Compact encoding").
+3. **`parseSearchBlob` / `stringifySearchBlob`** → wire both into the router
+   once: `createRouter({ parseSearch: parseSearchBlob, stringifySearch:
+   stringifySearchBlob })` (see "The URL blob codec").
 
 ## Recipe
 
 ```tsx
-// 1. Module scope. A slice = schema + default (+ optional codec).
+// 1. Module scope. A slice = schema + default.
 export const dashboardSearch = createUrlSyncedStateConfig({
   detailsShown: { schema: z.boolean(), defaultValue: false },
   range: { schema: z.enum(["7d", "30d", "90d"]), defaultValue: "30d" },
@@ -80,15 +81,23 @@ whichever fits — the core hook is router-agnostic.)
 synced. `defaults` must be a stable module-level object: the hook creates one
 atom per key in a loop, so the key set must be identical on every render.
 
-## Compact encoding
+## The URL blob codec
 
-Booleans, strings, numbers, and enums already serialize readably
-(`?detailsShown=true&range=30d`) — no codec needed. Give a slice an
-`encode`/`decode` pair only for structured values that would otherwise become
-percent-encoded JSON. Decoding runs in the slice schema (`z.preprocess`);
-encoding runs in the router's global `stringifySearch` via `encodeSearch`, so
-each slice's `encode` is registered by key name globally — a given key maps to
-one codec process-wide. Keep codecs within the URL-safe set `A-Za-z0-9 * - . _`.
+The whole search object travels as one base64url JSON blob under a single
+param: `?_s=eyJzb3J0aW5nIjp...`. Deliberate trade: URLs are opaque (not
+human-readable), but any JSON-serializable value round-trips exactly — no
+per-slice codecs, no delimiter grammar, no restrictions on what strings or
+array shapes a slice may hold. The pipeline is `parseSearchBlob` (blob →
+object) → route `validateSearch` (zod) → components; on write, navigation
+re-validates and `stringifySearchBlob` re-encodes.
+
+Rules that follow from "the URL is JSON":
+- Slice values must be JSON-serializable: dates as ISO strings, never `Date`.
+- `undefined` inside arrays/tuples becomes `null` — use `.nullable()` in
+  schemas for open bounds, not `.optional()`.
+- `parseSearchBlob` is total: a tampered/truncated blob is dropped (page
+  degrades to defaults, no crash). Plain non-blob params still parse and
+  override blob keys — hand-typed params keep working as an escape hatch.
 
 ## Fields must be `.optional()` with no `.default()`
 
@@ -108,10 +117,16 @@ It's an in-memory `Map`. Reload-safety is the URL's job — the store only
 restores state across in-app navigation to a param-less URL. Both together
 cover reload + nav + deep link.
 
-### [MEDIUM] Encoding compact values anywhere but the router
-Navigation re-validates search params (decoding them to real shapes) before
-stringifying, so any encoding applied earlier is undone. It must live in the
-router's `stringifySearch`.
+### [MEDIUM] Encoding search values anywhere but the router
+Navigation re-validates search params (producing real state shapes) before
+stringifying, so any encoding applied earlier is undone. Serialization lives
+only in the router's `parseSearch`/`stringifySearch` pair — and both halves
+must be wired, or blobs are written that nothing decodes (or vice versa).
+
+### [MEDIUM] Storing non-JSON values in a slice
+The blob is `JSON.stringify`/`JSON.parse` — a `Date`, `Map`, or `Set` won't
+round-trip. Store ISO strings / arrays / plain objects; let the zod schema
+enforce it.
 
 ### [LOW] Putting genuinely ephemeral UI state in the URL
 If it isn't worth sharing or bookmarking, `useState` is lighter. The URL is

@@ -15,35 +15,19 @@ import { z } from "zod";
  * Call the factory at module scope: `useUrlSyncedState` requires `defaults`
  * to be referentially stable across renders (its keys drive a hook loop).
  *
- * ## Compact URL encoding
- *
- * A slice may carry an `encode`/`decode` pair to serialize a structured value
- * as a compact human-readable string instead of percent-encoded JSON. The
- * router serializes with `URLSearchParams`, which leaves only
- * `A-Za-z0-9 * - . _` unescaped, so codecs should build on those characters.
- *
- * Decoding runs inside the schema (`z.preprocess`, per slice). Encoding must
- * run in the router's global `stringifySearch` (see `encodeSearch`) — so the
- * factory registers each slice's `encode` in a module-global map keyed by
- * slice name. Consequence: a given slice name maps to one codec process-wide
- * (two routes can't use the same name with different codecs). Slices without
- * a codec (booleans, strings, numbers) are written readably by the router's
- * default and need no registration.
+ * Serialization is not a slice concern: the router's `parseSearchBlob` /
+ * `stringifySearchBlob` (see `urlBlobCodec.ts`) round-trip the whole search
+ * object as one base64url JSON blob, so any JSON-serializable value works
+ * as-is. Slice values must be JSON-serializable (dates as ISO strings, unset
+ * tuple bounds as `null` — schemas use `.nullable()`, not `.optional()`, for
+ * those).
  */
 
 export interface UrlSlice<T> {
-  /** Validates the decoded value. Keep it tolerant of the raw JSON shape too. */
+  /** Validates the value parsed back out of the URL blob. */
   schema: z.ZodType<T>;
   /** Value used when the key is absent from both the URL and the fallback store. */
   defaultValue: T;
-  /**
-   * Compact string encoder (optional). Method syntax is deliberate: it keeps
-   * `UrlSlice<Specific>` assignable to `UrlSlice<unknown>` so heterogeneous
-   * slice records compose without variance errors.
-   */
-  encode?(value: T): string;
-  /** Inverse of `encode`. Total — never throws; the schema rejects bad shapes. */
-  decode?(raw: string): unknown;
 }
 
 export type UrlSyncedStateConfig<TDefaults extends Record<string, unknown>> = {
@@ -53,61 +37,14 @@ export type UrlSyncedStateConfig<TDefaults extends Record<string, unknown>> = {
   defaults: TDefaults;
 };
 
-// Slice-name -> compact encoder, populated by `createUrlSyncedStateConfig` as
-// configs are constructed (at module load). Read by `encodeSearch` in the
-// router's `stringifySearch`. Stored as `(value: never) => string` so any
-// concrete encoder is assignable; call sites pass `value as never`.
-const sliceEncoders = new Map<string, (value: never) => string>();
-
-/**
- * Returns a copy of `search` with any slice that has a registered compact
- * encoder serialized to its string form. The router calls `stringifySearch`
- * both with decoded values (arrays/objects/booleans, after `validateSearch`
- * on navigation) and with raw pre-validation values (already-compact strings,
- * during location parsing) — so only non-string values are encoded; strings
- * are assumed already compact and pass through. Wire this into the router as
- * `stringifySearch: (s) => defaultStringifySearch(encodeSearch(s))`.
- */
-export function encodeSearch(
-  search: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...search };
-  for (const key of Object.keys(out)) {
-    const value = out[key];
-    const encode = sliceEncoders.get(key);
-    if (encode && value !== undefined && typeof value !== "string") {
-      out[key] = encode(value as never);
-    }
-  }
-  return out;
-}
-
-/** Accept the compact string form (decode it) or the raw shape (JSON URLs). */
-function withCompactDecoding(
-  decode: (raw: string) => unknown,
-  schema: z.ZodType,
-): z.ZodType {
-  return z.preprocess((value) => {
-    // The router's query parser coerces numeric-looking values before we see
-    // them ("3.5" → 3.5) — stringify numbers back so e.g. a list of numeric
-    // ids still decodes. Booleans pass through untouched: a literal `true`
-    // (e.g. the JSON form of "all expanded") must stay a literal.
-    if (typeof value === "string" || typeof value === "number") {
-      return decode(String(value));
-    }
-    return value;
-  }, schema);
-}
-
 type DefaultsOf<S extends Record<string, UrlSlice<unknown>>> = {
   [K in keyof S]: S[K] extends UrlSlice<infer T> ? T : never;
 };
 
 /**
  * Compose a record of slices into `{ schema, defaults }`. The keys of `slices`
- * become the synced keys; each slice contributes its optional schema field
- * (with compact decoding if it has a codec), its default value, and — if it
- * has an `encode` — a registration into the global encoder map.
+ * become the synced keys; each slice contributes its optional schema field and
+ * its default value.
  */
 export function createUrlSyncedStateConfig<
   S extends Record<string, UrlSlice<unknown>>,
@@ -116,14 +53,8 @@ export function createUrlSyncedStateConfig<
   const defaults: Record<string, unknown> = {};
 
   for (const [key, slice] of Object.entries(slices)) {
-    const field = slice.decode
-      ? withCompactDecoding(slice.decode, slice.schema)
-      : slice.schema;
-    shape[key] = field.optional();
+    shape[key] = slice.schema.optional();
     defaults[key] = slice.defaultValue;
-    if (slice.encode) {
-      sliceEncoders.set(key, slice.encode as (value: never) => string);
-    }
   }
 
   // The shape is assembled dynamically, so its inferred type is too loose for

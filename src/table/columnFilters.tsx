@@ -1,4 +1,12 @@
-import { Button, Group, NumberInput, Select, Stack, Text } from "@mantine/core";
+import {
+  Button,
+  Group,
+  MultiSelect,
+  NumberInput,
+  Select,
+  Stack,
+  Text,
+} from "@mantine/core";
 import type { RowData, Table as TanstackTableDef } from "@tanstack/react-table";
 import type { ComponentProps } from "react";
 
@@ -8,6 +16,7 @@ import type { ComponentProps } from "react";
  */
 export type ColumnFilterMeta =
   | { variant: "select"; options: string[] }
+  | { variant: "multiselect"; options: string[] }
   | { variant: "range"; min: number; max: number };
 
 // Same AnyFeatures/AnyTableFeaturesRecord pattern as TMTable.tsx: TanStack's
@@ -67,6 +76,22 @@ function DrawerColumnFilters<
               data={filter.options}
               value={(column.getFilterValue() as string | undefined) ?? null}
               onChange={(value) => column.setFilterValue(value ?? undefined)}
+              clearable
+            />
+          );
+        }
+
+        if (filter?.variant === "multiselect") {
+          return (
+            <MultiSelect
+              key={column.id}
+              label={label}
+              placeholder="Any"
+              data={filter.options}
+              value={(column.getFilterValue() as string[] | undefined) ?? []}
+              onChange={(value) =>
+                column.setFilterValue(value.length === 0 ? undefined : value)
+              }
               clearable
             />
           );

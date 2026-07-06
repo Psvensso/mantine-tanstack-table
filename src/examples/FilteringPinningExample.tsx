@@ -314,8 +314,10 @@ const SALARY_RANGE = {
   max: Math.max(...DATA.map((employee) => employee.salary)),
 };
 
-// "equalsString" columns (department, status) carry a string; the salary
-// "inNumberRange" column carries a [min, max] pair with nullable bounds.
+// "equalsString" (status) carries a string; "inNumberRange" (salary) carries
+// a [min, max] pair with nullable bounds; department is a multiselect and
+// carries a `string[]` — array-valued column filters round-trip through the
+// URL blob like any other JSON shape.
 export const filteringPinningSearch = createTableSearchConfig({
   defaults: {
     sorting: [{ id: "name", desc: false }],
@@ -325,6 +327,7 @@ export const filteringPinningSearch = createTableSearchConfig({
   },
   filterValue: z.union([
     z.string(),
+    z.array(z.string()),
     z.tuple([z.number().nullable(), z.number().nullable()]),
   ]),
 });
@@ -359,8 +362,9 @@ const columns = columnHelper.columns([
   columnHelper.accessor("department", {
     header: "Department",
     minSize: 120,
-    filterFn: "equalsString",
-    meta: { filter: { variant: "select", options: DEPARTMENT_OPTIONS } },
+    filterFn: (row, columnId, filterValue: string[]) =>
+      filterValue.includes(row.getValue(columnId)),
+    meta: { filter: { variant: "multiselect", options: DEPARTMENT_OPTIONS } },
   }),
   columnHelper.accessor("role", {
     header: "Role",

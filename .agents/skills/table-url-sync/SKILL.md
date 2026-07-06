@@ -33,7 +33,7 @@ over the generic `url-state-sync` kit:
   your own via the generic factory.
 
 Everything table-specific ends there; the atoms↔URL↔fallback engine, the
-config factory, and the compact-URL machinery are all the generic kit.
+config factory, and the URL blob codec are all the generic kit.
 
 ## Adding a synced table page (the recipe)
 
@@ -104,15 +104,16 @@ state. Two options, both through the same machinery:
 
 ## URL format
 
-Table slices are written as compact strings, not percent-encoded JSON:
-`?sorting=-salary.name&pagination=1_10&grouping=region`, `expanded=*` (all) or
-`expanded=ORD-1008.ORD-1006` (id list), `columnFilters=department.Sales*salary.40000_60000`
-(`id.value` pairs joined by `*`; ranges are `min_max`, empty side = open bound).
-The codecs live in `tableSlices`; encoding is wired once into the router's
-`stringifySearch` via the generic `encodeSearch`. Schemas accept both the
-compact and raw-JSON forms, so old JSON URLs keep working. Limitation: ids with
-`.` or a leading `-`, and string filter values with `*`/`.` or shaped like
-`min_max`, won't round-trip — avoid them on synced tables.
+The whole search state travels as one base64url JSON blob param
+(`?_s=eyJzb3J0aW5nIjp...`) — the generic kit's `parseSearchBlob`/
+`stringifySearchBlob`, wired once into the router. URLs are opaque, but any
+JSON-serializable state round-trips exactly: there are no restrictions on
+column/row ids or filter value shapes (strings with any characters, arrays for
+multiselects, nested tuples all work — see `FilteringPinningExample`'s
+department column for a multiselect `columnFilters` demo). Table slices are
+plain `{ schema, defaultValue }` with no codecs. One JSON caveat: `undefined`
+inside a tuple becomes `null`, so range-filter schemas use `.nullable()`
+bounds.
 
 ## Why `atoms`, not `state` + `on*Change`
 
