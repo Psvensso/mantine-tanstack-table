@@ -1,6 +1,7 @@
 ---
 name: table-url-sync
-description: How to sync TanStack Table v9 state (sorting, pagination, grouping,
+description: >-
+  How to sync TanStack Table v9 state (sorting, pagination, grouping,
   expanded, column/global filters) to the URL so a table is shareable,
   bookmarkable, reload-safe and back/forward-safe. This is the table-specific
   layer built on the generic `url-state-sync` kit. Core pieces:
@@ -10,7 +11,9 @@ description: How to sync TanStack Table v9 state (sorting, pagination, grouping,
   `tableSlices` library. Lives in `src/table/url-sync/`. Reference
   implementations: every page in `src/examples/`, plus the annotated
   deep-dive demo in `src/routes-url-sync/`. For the underlying generic
-  mechanism (and for syncing non-table state), see the `url-state-sync` skill.
+  mechanism (and for syncing non-table state), see the `url-state-sync` skill;
+  for writing Playwright e2e tests against synced URLs, see the
+  `url-state-testing` skill.
 ---
 
 # Syncing TanStack Table v9 state to the URL
@@ -33,7 +36,7 @@ over the generic `url-state-sync` kit:
   your own via the generic factory.
 
 Everything table-specific ends there; the atoms↔URL↔fallback engine, the
-config factory, and the URL blob codec are all the generic kit.
+config factory, and the compact-URL machinery are all the generic kit.
 
 ## Adding a synced table page (the recipe)
 
@@ -104,16 +107,21 @@ state. Two options, both through the same machinery:
 
 ## URL format
 
-The whole search state travels as one base64url JSON blob param
-(`?_s=eyJzb3J0aW5nIjp...`) — the generic kit's `parseSearchBlob`/
-`stringifySearchBlob`, wired once into the router. URLs are opaque, but any
-JSON-serializable state round-trips exactly: there are no restrictions on
-column/row ids or filter value shapes (strings with any characters, arrays for
-multiselects, nested tuples all work — see `FilteringPinningExample`'s
-department column for a multiselect `columnFilters` demo). Table slices are
-plain `{ schema, defaultValue }` with no codecs. One JSON caveat: `undefined`
-inside a tuple becomes `null`, so range-filter schemas use `.nullable()`
-bounds.
+Table slices are written as compact strings, not percent-encoded JSON:
+`?sorting=-salary.name&pagination=1_10&grouping=region`, `expanded=*` (all) or
+`expanded=ORD-1008.ORD-1006` (id list), `columnFilters=department.Sales.HR*salary.40000_60000`
+(`id.value` pairs joined by `*`; a range value is `min_max`, empty side = open
+bound; an array value, e.g. a multiselect column filter, is a `.`-led,
+`.`-joined list — `department.Sales.HR` decodes to `["Sales", "HR"]`, an empty
+array is just `department.`). See `FilteringPinningExample`'s department
+column for a working multiselect `columnFilters` demo.
+The codecs live in `tableSlices`; encoding is wired once into the router's
+`stringifySearch` via the generic `encodeSearch`. Schemas accept both the
+compact and raw-JSON forms, so old JSON URLs keep working. Limitation: ids with
+`.` or a leading `-`, and string filter values with `*`/`.`, leading with `.`,
+or shaped like `min_max`, won't round-trip — avoid them on synced tables.
+Array filter values always decode as `string[]`; for a numeric multiselect
+give it `z.array(z.coerce.number())` in `filterValue`.
 
 ## Why `atoms`, not `state` + `on*Change`
 

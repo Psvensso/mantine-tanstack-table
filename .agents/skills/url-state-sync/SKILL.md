@@ -1,6 +1,7 @@
 ---
 name: url-state-sync
-description: How to sync arbitrary React state to the URL as TanStack Router
+description: >-
+  How to sync arbitrary React state to the URL as TanStack Router
   search params, using TanStack Store atoms as the shared source of truth.
   This is the generic, domain-agnostic kit (not table-specific) — reach for it
   whenever a page needs state that is shareable, bookmarkable, reload-safe,
@@ -10,7 +11,8 @@ description: How to sync arbitrary React state to the URL as TanStack Router
   schema+defaults pair), and `encodeSearch` (compact human-readable URLs via
   the router's stringifySearch). Lives in `src/url-state/`. For syncing
   TanStack Table state specifically, see the `table-url-sync` skill, which is
-  one consumer of this kit.
+  one consumer of this kit; for writing Playwright e2e tests against synced
+  URLs, see the `url-state-testing` skill.
 ---
 
 # Syncing arbitrary state to the URL

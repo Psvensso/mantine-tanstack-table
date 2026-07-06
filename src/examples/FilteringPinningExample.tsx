@@ -316,8 +316,8 @@ const SALARY_RANGE = {
 
 // "equalsString" (status) carries a string; "inNumberRange" (salary) carries
 // a [min, max] pair with nullable bounds; department is a multiselect and
-// carries a `string[]` — array-valued column filters round-trip through the
-// URL blob like any other JSON shape.
+// carries a `string[]` — proves array-valued column filters round-trip
+// through the compact URL form (see `tableUrlSlices.ts`).
 export const filteringPinningSearch = createTableSearchConfig({
   defaults: {
     sorting: [{ id: "name", desc: false }],
