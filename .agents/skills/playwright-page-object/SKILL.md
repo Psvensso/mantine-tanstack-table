@@ -20,26 +20,37 @@ them*; it does not know *what the test expects*.
 
 ## Setup
 
-### Folder layout
+### Folder layout — follow your project's convention, not a prescribed one
+
+There is no required directory structure. Put page objects wherever your
+project already keeps test code so they sit next to the tests that use them.
+Two common conventions, both fine:
 
 ```
+# Centralized e2e/ tree
 e2e/
-  pages/
-    base.page.ts          # shared helpers (goto, waitForLoaded, etc.)
-    login.page.ts
-    employee-list.page.ts
-  components/
-    data-table.component.ts   # reusable widget, not a full page
-    filter-panel.component.ts
-  fixtures.ts              # extends `test` with page objects pre-wired
-  tests/
-    login.spec.ts
-    employee-list.spec.ts
+  pages/       login.page.ts, employee-list.page.ts
+  components/  data-table.component.ts
+  fixtures.ts
+  tests/       login.spec.ts
+
+# Colocated with the feature (e.g. src/pages/<page>/__test__/)
+src/pages/employees/__test__/
+  employees.spec.ts
+  employees.page.ts      # the page object next to its test
+  data-table.component.ts
 ```
 
-Split **pages** (a full route, one per URL/screen) from **components**
-(a repeated widget — a table, a modal, a nav bar — that appears on multiple
-pages). A page composes components; components never instantiate pages.
+Pick whichever matches the surrounding codebase — if your app colocates tests
+under `src/pages/<page>/__test__/`, put the page object there too; don't
+introduce a parallel `e2e/` tree just to satisfy a convention. Shared
+components/fixtures can live in a common folder the features import from.
+
+What actually matters is not the folders but the **separation of concerns**:
+split **pages** (a full route/screen) from **components** (a repeated widget —
+a table, modal, nav bar — appearing on multiple pages). A page composes
+components; components never instantiate pages. That boundary holds regardless
+of where the files sit.
 
 ### Wire page objects through fixtures, not constructors in every test
 
