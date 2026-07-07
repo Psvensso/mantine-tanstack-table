@@ -15,6 +15,11 @@ import { z } from "zod";
  * Call the factory at module scope: `useUrlSyncedState` requires `defaults`
  * to be referentially stable across renders (its keys drive a hook loop).
  *
+ * Use the produced `parse` (not `schema.parse`) for a route's
+ * `validateSearch` — it never throws. A garbage or invalid value for a key
+ * (a hand-edited URL, a stale link) is dropped from that key only, rather
+ * than failing the whole route's navigation.
+ *
  * ## Compact URL encoding
  *
  * A slice may carry an `encode`/`decode` pair to serialize a structured value
@@ -47,10 +52,23 @@ export interface UrlSlice<T> {
 }
 
 export type UrlSyncedStateConfig<TDefaults extends Record<string, unknown>> = {
-  /** For the route's `validateSearch`. Parses to `Partial<TDefaults>` — absent fields stay `undefined`. */
+  /**
+   * The composed schema, for callers that want to fold it into a bigger
+   * `z.object` themselves. Prefer `parse` below for a route's
+   * `validateSearch` — this raw schema still throws on an invalid field.
+   */
   schema: z.ZodType<Partial<TDefaults>>;
   /** For `useUrlSyncedState`. Module-scope stable when the factory is called at module scope. */
   defaults: TDefaults;
+  /**
+   * Tolerant parse for a route's `validateSearch`. Never throws: a field
+   * that's absent, `null`, or fails its slice schema (a hand-edited URL, a
+   * stale link from a since-changed codec) is simply omitted from the
+   * result rather than raising a validation error for the whole route —
+   * `useUrlSyncedState` then resolves that key through the fallback store
+   * or its default, same as if it had never been in the URL.
+   */
+  parse: (search: Record<string, unknown>) => Partial<TDefaults>;
 };
 
 // Slice-name -> compact encoder, populated by `createUrlSyncedStateConfig` as
@@ -113,12 +131,14 @@ export function createUrlSyncedStateConfig<
   S extends Record<string, UrlSlice<unknown>>,
 >(slices: S): UrlSyncedStateConfig<DefaultsOf<S>> {
   const shape: Record<string, z.ZodType> = {};
+  const fields: Record<string, z.ZodType> = {};
   const defaults: Record<string, unknown> = {};
 
   for (const [key, slice] of Object.entries(slices)) {
     const field = slice.decode
       ? withCompactDecoding(slice.decode, slice.schema)
       : slice.schema;
+    fields[key] = field;
     shape[key] = field.optional();
     defaults[key] = slice.defaultValue;
     if (slice.encode) {
@@ -126,10 +146,26 @@ export function createUrlSyncedStateConfig<
     }
   }
 
+  // Field-by-field so one bad/garbage value can't take the whole route down:
+  // absent, `null`, or schema-rejected keys are simply dropped from the
+  // result instead of throwing — `useUrlSyncedState` treats a missing key as
+  // "fall back to the fallback store, then the default".
+  function parse(search: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(fields)) {
+      const raw = search[key];
+      if (raw === undefined || raw === null) continue;
+      const result = fields[key].safeParse(raw);
+      if (result.success) out[key] = result.data;
+    }
+    return out;
+  }
+
   // The shape is assembled dynamically, so its inferred type is too loose for
   // TS to connect back to S — the loop above is what upholds this contract.
   return {
     schema: z.object(shape),
     defaults,
+    parse,
   } as unknown as UrlSyncedStateConfig<DefaultsOf<S>>;
 }

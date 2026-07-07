@@ -31,7 +31,8 @@ import type { UrlSlice } from "../../url-state";
  *                                          empty array is just `.`)
  *
  * Decoders are total — they never throw; a garbage value decodes to a shape
- * the slice schema then rejects, surfacing as a normal validateSearch error.
+ * the slice schema then rejects, which `createUrlSyncedStateConfig`'s `parse`
+ * turns into "key dropped" rather than a thrown validateSearch error.
  *
  * Known limitation: column/row ids containing `.` or a leading `-`, and string
  * filter values containing `*`/`.`, leading with `.`, or shaped like

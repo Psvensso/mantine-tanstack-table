@@ -62,7 +62,9 @@ export const dashboardSearch = createUrlSyncedStateConfig({
 
 const routeApi = getRouteApi("/dashboard");
 
-// 2. Route (router.tsx): validateSearch: (s) => dashboardSearch.schema.parse(s)
+// 2. Route (router.tsx): validateSearch: (s) => dashboardSearch.parse(s)
+//    (`parse`, not `schema.parse` — it never throws; a bad/garbage value for
+//    a key just drops that key instead of failing the whole navigation)
 
 // 3. Component:
 const atoms = useUrlSyncedState({

@@ -58,7 +58,9 @@ export const myTableSearch = createTableSearchConfig({
 
 const routeApi = getRouteApi("/my-table");
 
-// 2. In src/router.tsx: validateSearch: (s) => myTableSearch.schema.parse(s)
+// 2. In src/router.tsx: validateSearch: (s) => myTableSearch.parse(s)
+//    (`parse`, not `schema.parse` — never throws; a bad value for a key just
+//    drops that key instead of failing the whole route's navigation)
 
 // 3. In the component:
 const { atoms, tableOptions } = useTableUrlSync({

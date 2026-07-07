@@ -82,7 +82,7 @@ export const filteringPinningRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/filtering-pinning",
   validateSearch: (search: Record<string, unknown>) =>
-    filteringPinningSearch.schema.parse(search),
+    filteringPinningSearch.parse(search),
   component: FilteringPinningExample,
 });
 
@@ -90,7 +90,7 @@ export const expandableRowsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/expandable-rows",
   validateSearch: (search: Record<string, unknown>) =>
-    expandableRowsSearch.schema.parse(search),
+    expandableRowsSearch.parse(search),
   component: ExpandableRowsExample,
 });
 
@@ -98,7 +98,7 @@ export const rowGroupingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/row-grouping",
   validateSearch: (search: Record<string, unknown>) =>
-    rowGroupingSearch.schema.parse(search),
+    rowGroupingSearch.parse(search),
   component: RowGroupingExample,
 });
 
@@ -106,7 +106,7 @@ export const serverSideFilteringRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/server-side-filtering",
   validateSearch: (search: Record<string, unknown>) =>
-    serverSideFilteringSearch.schema.parse(search),
+    serverSideFilteringSearch.parse(search),
   component: ServerSideFilteringExample,
 });
 
@@ -114,7 +114,7 @@ export const dynamicGroupingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/dynamic-grouping",
   validateSearch: (search: Record<string, unknown>) =>
-    dynamicGroupingSearch.schema.parse(search),
+    dynamicGroupingSearch.parse(search),
   component: DynamicGroupingExample,
 });
 
@@ -122,7 +122,7 @@ export const subgridTableRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/subgrid-table",
   validateSearch: (search: Record<string, unknown>) =>
-    subgridTableSearch.schema.parse(search),
+    subgridTableSearch.parse(search),
   component: SubgridTableExample,
 });
 
@@ -130,7 +130,7 @@ export const virtualizedGroupingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/virtualized-grouping",
   validateSearch: (search: Record<string, unknown>) =>
-    virtualizedGroupingSearch.schema.parse(search),
+    virtualizedGroupingSearch.parse(search),
   component: VirtualizedGroupingExample,
 });
 
@@ -138,7 +138,7 @@ export const virtualizedExpandableRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/virtualized-expandable",
   validateSearch: (search: Record<string, unknown>) =>
-    virtualizedExpandableSearch.schema.parse(search),
+    virtualizedExpandableSearch.parse(search),
   component: VirtualizedExpandableExample,
 });
 
@@ -146,7 +146,7 @@ export const groupingPaginationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/grouping-pagination",
   validateSearch: (search: Record<string, unknown>) =>
-    groupingPaginationSearch.schema.parse(search),
+    groupingPaginationSearch.parse(search),
   component: GroupingPaginationExample,
 });
 
@@ -156,7 +156,7 @@ export const tableSyncRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/table-url-sync",
   validateSearch: (search: Record<string, unknown>) =>
-    employeesSearch.schema.parse(search),
+    employeesSearch.parse(search),
   component: TableSyncPage,
 });
 

@@ -60,6 +60,11 @@ function jsonEqual(a: unknown, b: unknown): boolean {
   return true;
 }
 
+/** `undefined` and `null` both mean "not actually there" throughout this hook. */
+function isNullish(value: unknown): boolean {
+  return value === undefined || value === null;
+}
+
 function resolveValue<TDefaults extends Record<string, unknown>>(
   scope: string,
   key: keyof TDefaults & string,
@@ -67,9 +72,24 @@ function resolveValue<TDefaults extends Record<string, unknown>>(
   defaults: TDefaults,
 ): TDefaults[typeof key] {
   const fromUrl = search[key];
-  if (fromUrl !== undefined) return fromUrl;
+  // Written as a direct comparison (not `!isNullish(fromUrl)`) so TS narrows
+  // the generic-constrained type instead of collapsing it to `unknown`.
+  if (fromUrl !== undefined && fromUrl !== null) return fromUrl;
   const fallback = getFallback<TDefaults[typeof key]>(scope, key);
   return fallback !== undefined ? fallback : defaults[key];
+}
+
+/**
+ * Whether a slice's value is "nothing" and so shouldn't be written into the
+ * URL: `undefined`/`null` (a decode failure dropped it, or a consumer wrote
+ * one directly), or a falsy scalar (`""`, `0`, `false`) — the common shape of
+ * a cleared text filter or toggled-off boolean slice. Only checked at the
+ * top level: a slice value that's a non-empty object/array (pagination,
+ * sorting, `[]` for "no rows expanded") is never falsy in JS and is written
+ * as-is.
+ */
+function isEmptyUrlValue(value: unknown): boolean {
+  return isNullish(value) || value === false || value === "" || value === 0;
 }
 
 /**
@@ -126,7 +146,7 @@ export function useUrlSyncedState<TDefaults extends Record<string, unknown>>(
   const pendingWriteRef = useRef<boolean | null>(null);
   if (pendingWriteRef.current === null) {
     pendingWriteRef.current = keys.some(
-      (key) => search[key] === undefined && getFallback(scope, key) !== undefined,
+      (key) => isNullish(search[key]) && getFallback(scope, key) !== undefined,
     );
   }
 
@@ -148,7 +168,17 @@ export function useUrlSyncedState<TDefaults extends Record<string, unknown>>(
           replace: true,
           search: (prev) => {
             const next = { ...prev };
-            for (const k of keys) next[k] = atoms[k].get();
+            for (const k of keys) {
+              const value = atoms[k].get();
+              // Falsy/nullish slice values are cleared rather than written —
+              // a bare key or a stray `false`/`0`/`""` in the URL isn't worth
+              // the noise, and it keeps a fresh visit's URL trace-free.
+              if (isEmptyUrlValue(value)) {
+                delete next[k];
+              } else {
+                next[k] = value;
+              }
+            }
             return next;
           },
         });
@@ -162,7 +192,7 @@ export function useUrlSyncedState<TDefaults extends Record<string, unknown>>(
     // bare. (Idempotent on effect re-runs; the subscriptions below keep the
     // store fresh afterwards.)
     for (const key of keys) {
-      if (searchRef.current[key] !== undefined) {
+      if (!isNullish(searchRef.current[key])) {
         setFallback(scope, key, atoms[key].get());
       }
     }
