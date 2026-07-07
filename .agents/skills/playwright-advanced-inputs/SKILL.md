@@ -1,35 +1,45 @@
 ---
-name: mantine-playwright-inputs
+name: playwright-advanced-inputs
 description: >-
-  How to drive Mantine (and Mantine-like) form inputs from Playwright,
-  focused on a durable method rather than a selector cheat-sheet: the two
-  structural facts that break naive selectors (dropdowns render in a portal
-  on <body>; there are two inputs — a visible role="textbox" for display and
-  a hidden input[name] for the submitted value), how to DISCOVER the correct
-  role/name for any widget (codegen, aria snapshot, the accessibility tree,
-  the role-priority ladder) instead of memorizing it, the general open → wait
-  for listbox → pick pattern for the Combobox family (Select, Autocomplete,
-  MultiSelect, TagsInput) and date inputs, and — when the widget is your own
-  custom component that's hard to target — what to add to the source
-  (roles, accessible names, data-testid, aria-expanded) to make it testable.
-  Use whenever writing Playwright interactions/locators against a Mantine or
-  custom input, or deciding how to make a custom input testable. Pairs with
-  the `playwright-page-object` skill for where these locators live.
+  How to drive advanced form inputs from Playwright — dropdowns/comboboxes,
+  multi-selects, autocompletes, date pickers — focused on a durable method
+  rather than a selector cheat-sheet. Covers the two structural facts that
+  break naive selectors (dropdowns render in a portal on <body>; there are
+  often two inputs — a visible control for display and a hidden input[name]
+  for the submitted value), how to DISCOVER the correct role/name for any
+  widget (aria snapshot, codegen, the accessibility tree, the role-priority
+  ladder) instead of memorizing it, the general open → wait for the panel →
+  pick pattern, and — when the widget is your own custom component that's
+  hard to target — what to add to the source (roles, accessible names,
+  data-testid, aria-expanded) to make it testable. Uses Mantine's Combobox
+  family (Select, Autocomplete, MultiSelect, TagsInput, DatePickerInput) as
+  the running example, but the method applies to any component library or
+  hand-rolled widget. Use whenever writing Playwright interactions/locators
+  against a non-trivial input, or deciding how to make a custom input
+  testable. Pairs with the `playwright-page-object` skill for where these
+  locators live.
 ---
 
-# Driving Mantine inputs from Playwright
+# Driving advanced inputs from Playwright
 
-Plain inputs are easy; the Combobox family (Select, Autocomplete, MultiSelect,
-TagsInput) and the date inputs trip up most selector attempts. This skill
-teaches how to *find* the right selector for whatever version you're on and
-how to *fix* a custom widget that resists targeting — not a list of names to
-memorize, because accessible names and DOM details drift across Mantine
-versions and locales.
+Plain inputs (text, checkbox, radio) are easy. Compound widgets — comboboxes,
+selects, multi-selects, autocompletes, date pickers — trip up most selector
+attempts, because they render across a portal and split display from value.
+This skill teaches how to *find* the right selector for whatever component and
+version you're on, and how to *fix* a custom widget that resists targeting —
+not a list of names to memorize, because accessible names and DOM details
+drift across library versions and locales.
+
+The worked examples use **Mantine**'s Combobox family (Select, Autocomplete,
+MultiSelect, TagsInput, DatePickerInput), since that's a common source of
+trouble, but nothing here is Mantine-only — the same method applies to
+Radix, Headless UI, MUI, Ant Design, or a component you built yourself.
 
 ## Two structural facts that outlast any version
 
-These are architectural, not cosmetic — they hold across Mantine 7/8/9 and
-most Combobox-based UI kits, and they explain the majority of failures:
+These are architectural, not cosmetic — they hold across most portal-based
+dropdown widgets (Mantine 7/8/9, Radix, MUI, and hand-rolled ones alike), and
+they explain the majority of failures:
 
 1. **The dropdown is portaled.** When a Select/DatePicker opens, its options
    (and any footer buttons) are appended to the end of `<body>`, *not* nested
