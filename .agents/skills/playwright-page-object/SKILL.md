@@ -5,8 +5,9 @@ description: >-
   project setup (folder layout, base class, fixtures for auto-instantiation),
   writing resilient selectors (role/testid priority, locators as lazy getters,
   never raw CSS/XPath), and long-term maintenance (thin action methods, no
-  assertions baked into page objects, component objects for repeated widgets,
-  avoiding god objects). Generic Playwright guidance, not tied to this repo's
+  assertions baked into page objects, keeping mock/route interception out of
+  the page object, component objects for repeated widgets, avoiding god
+  objects). Generic Playwright guidance, not tied to this repo's
   stack. Use whenever creating, reviewing, or refactoring a Playwright page
   object. See the `url-state-testing` skill for how to write the test
   assertions themselves once locators exist.
@@ -250,6 +251,68 @@ await expect(employeeListPage.table.rows()).toHaveCount(10);
 This is the mechanism that keeps maintenance cheap: when the table's markup
 changes, one component class changes, not every page that embeds a table.
 
+## Keep mock/route setup out of the page object
+
+Network mocking (`page.route(...)`, request interception, seeded API
+responses) is **test-data setup, not page structure** — keep it out of the
+page object entirely. The same page object must work unchanged whether a test
+mocks the API, hits a real backend, or uses a different mock scenario. A page
+object knows *where things are and how to interact with them*; it must not
+know *what data the server returns*.
+
+The tell that this line has been crossed: the page object grows a constructor
+param or a method per scenario (`new EmployeeListPage(page, mockData)`,
+`employeeListPage.mockEmptyState()`). Every new test scenario then forces an
+edit to a class that's supposed to be a stable abstraction, and the mocking
+logic gets copy-pasted into whichever page happens to trigger the request.
+
+Put mocks in their own module and compose them **alongside** the page object
+as a sibling fixture, so each stays responsible for one axis of change —
+selectors/actions (change when the UI changes) vs. response data (changes per
+scenario):
+
+```ts
+// mocks/employees.mock.ts
+import type { Page } from "@playwright/test";
+import type { Employee } from "../../src/types";
+
+export async function mockEmployees(page: Page, employees: Employee[]) {
+  await page.route("**/api/employees*", (route) =>
+    route.fulfill({ json: employees }),
+  );
+}
+```
+
+```ts
+// fixtures.ts — mocking helper is a fixture, not a page-object method
+export const test = base.extend<Fixtures>({
+  employeeListPage: async ({ page }, use) => use(new EmployeeListPage(page)),
+  mockEmployees: async ({ page }, use) =>
+    use((employees: Employee[]) => mockEmployees(page, employees)),
+});
+```
+
+```ts
+// employee-list.spec.ts — test wires the two together; POM stays data-agnostic
+test("shows an empty state", async ({ employeeListPage, mockEmployees }) => {
+  await mockEmployees([]);
+  await employeeListPage.goto();
+  await expect(employeeListPage.emptyState()).toBeVisible();
+});
+
+test("lists returned employees", async ({ employeeListPage, mockEmployees }) => {
+  await mockEmployees([alice, bob, carol]);
+  await employeeListPage.goto();
+  await expect(employeeListPage.rows()).toHaveCount(3);
+});
+```
+
+Register broad, scenario-agnostic routes (blanket 404s for unmocked
+endpoints, auth stubs shared by every test) in a fixture or global setup, not
+in individual page objects. The cost of this split is two files to open
+instead of one; the payoff is that a UI change never touches mock code and a
+new data scenario never touches a page object.
+
 ## Maintaining page objects
 
 - **One class per page/component, not per test.** If a locator or action only
@@ -294,6 +357,9 @@ changes, one component class changes, not every page that embeds a table.
 - **Assertions embedded in page object methods** — removes the test's
   ability to choose count vs visibility vs polling, and makes failures report
   from inside the page object instead of the test.
+- **Mock/route setup inside the page object** — a `mockData` constructor
+  param or `mock*()` method forces the class to grow per test scenario; keep
+  interception in a sibling fixture/module so the POM stays data-agnostic.
 - **A generic `BasePage` that wraps every Playwright API** (`clickByText`,
   `waitAndClick`, `safeFill`) — this is usually working around not trusting
   Playwright's auto-waiting, and it obscures actionability failures instead
