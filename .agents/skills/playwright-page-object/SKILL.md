@@ -9,8 +9,7 @@ description: >-
   the page object, component objects for repeated widgets, avoiding god
   objects). Generic Playwright guidance, not tied to this repo's
   stack. Use whenever creating, reviewing, or refactoring a Playwright page
-  object. See the `url-state-testing` skill for how to write the test
-  assertions themselves once locators exist.
+  object.
 ---
 
 # Playwright Page Object best practices

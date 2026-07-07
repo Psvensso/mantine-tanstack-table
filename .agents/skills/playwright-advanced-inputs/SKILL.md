@@ -16,8 +16,7 @@ description: >-
   the running example, but the method applies to any component library or
   hand-rolled widget. Use whenever writing Playwright interactions/locators
   against a non-trivial input, or deciding how to make a custom input
-  testable. Pairs with the `playwright-page-object` skill for where these
-  locators live.
+  testable.
 ---
 
 # Driving advanced inputs from Playwright
@@ -233,11 +232,11 @@ labels are associated with the input and churn less than placeholder copy.
 
 ## Where these locators belong
 
-Keep this interaction logic in a **component object** (see the
-`playwright-page-object` skill), not copy-pasted per test — a Select appears
-on many pages and its open→wait→pick dance should live in one class,
-parameterized by the accessible name so the discovered selectors sit in one
-place:
+Don't copy-paste this interaction logic per test — a Select appears on many
+pages and its open→wait→pick dance should live in one place, parameterized by
+the accessible name so the discovered selectors sit in a single class. If you
+use the Page Object / component-object pattern, this is a component object;
+otherwise a small helper class or function works the same way:
 
 ```ts
 export class MantineSelect {
