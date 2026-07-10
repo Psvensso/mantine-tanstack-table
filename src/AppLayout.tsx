@@ -56,6 +56,14 @@ const EXAMPLE_LINKS: NavItem[] = [
   },
 ];
 
+const FORM_LINKS: NavItem[] = [
+  {
+    to: "/form-validation",
+    label: "Employee Form",
+    description: "TanStack Form + Zod validation",
+  },
+];
+
 const URL_SYNC_LINKS: NavItem[] = [
   {
     to: "/table-url-sync",
@@ -113,6 +121,7 @@ export function AppLayout() {
         }}
       >
         <NavSection title="EXAMPLES" items={EXAMPLE_LINKS} />
+        <NavSection title="FORMS" items={FORM_LINKS} />
         <NavSection title="URL SYNC DEMO" items={URL_SYNC_LINKS} />
       </nav>
       <main style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
