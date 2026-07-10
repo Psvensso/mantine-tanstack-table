@@ -1,17 +1,14 @@
 ---
 name: zod
-description: Reference for zod v4's schema API as used in this repo — top-level string-format schemas (`z.email()`, `z.iso.date()`, not the deprecated `.email()` chain), the unified `{ error }` param for custom messages, `.safeParse`/`.issues`/`z.treeifyError`, and the two integration points this codebase actually uses a schema for (TanStack Router `validateSearch` and TanStack Form field/form validators — both consume zod via the Standard Schema spec). Use whenever writing or editing a `z.object`/`z.string`/etc. schema. For wiring a schema into `@tanstack/react-form`, see the `tanstack-form` skill.
+description: Reference for zod v4's schema API — top-level string-format schemas (`z.email()`, `z.iso.date()`, not the deprecated `.email()` chain), the unified `{ error }` param for custom messages, `.safeParse`/`.issues`/`z.treeifyError`, and integrating a schema with TanStack Router's `validateSearch` and TanStack Form's field/form validators (both consume zod via the Standard Schema spec, one schema, no adapter). Use whenever writing or editing a `z.object`/`z.string`/etc. schema. For wiring a schema into `@tanstack/react-form`, see the `tanstack-form` skill.
 ---
 
-# zod v4 — this repo's conventions
+# zod v4
 
-Repo is on zod `4.4.3`. Two existing consumers set the conventions:
-[`src/routes-url-sync/searchSchema.ts`](../../../src/routes-url-sync/searchSchema.ts)
-(TanStack Router `validateSearch`) and
-[`src/examples/FormValidationExample.tsx`](../../../src/examples/FormValidationExample.tsx)
-(TanStack Form validators). Both work because zod v4 schemas implement the
-[Standard Schema](https://standardschema.dev) spec — the same schema object
-plugs into either consumer with no adapter.
+Covers zod `4.x`. zod v4 schemas implement the
+[Standard Schema](https://standardschema.dev) spec, which is what lets the
+*same* schema object plug directly into consumers like TanStack Router's
+`validateSearch` or TanStack Form's validators with no adapter package.
 
 ## v4 moved string formats to top-level functions
 
@@ -110,20 +107,22 @@ be the bridge to the schema's narrower output type once validation passes.
 See the `tanstack-form` skill's Mantine value-type table for the concrete
 shapes each input produces.
 
-## This repo's existing usage (for cross-reference)
+## Two common integration points
 
-- `createTableSearchConfig({ defaults, filterValue })` in
-  [`src/table/url-sync`](../../../src/table/url-sync) takes a zod schema for
-  the filter-value union and feeds it into `validateSearch` via
-  `schema.parse(search)` at the route level — see
-  [`FilteringPinningExample.tsx`](../../../src/examples/FilteringPinningExample.tsx).
-- `FormValidationExample.tsx` uses the same library for form validation, per
-  the `tanstack-form` skill.
+- **TanStack Router `validateSearch`**: pass `(search) => schema.parse(search)`
+  (or a `.safeParse` variant if you want a fallback instead of a thrown error
+  on a malformed URL) as the route's `validateSearch` option — the schema's
+  output becomes the route's typed search params.
+- **TanStack Form validators**: pass the schema (or `schema.shape.field`)
+  directly as a `validators.onChange`/`onSubmit`/etc. value — see the
+  `tanstack-form` skill for the field-vs-form-level split and the
+  `field.state.meta.errors` gotcha that follows from this Standard Schema
+  integration.
 
 ## Sources
 
-- zod `4.4.3` (`node_modules/zod/package.json`).
+- zod `4.x` (checked against `4.4.3`).
 - Behavior above (custom `error` per issue code, `z.iso.date()`,
   `z.treeifyError`, enum/date `null` handling) verified by running
-  `safeParse`/`treeifyError` directly against zod v4 as installed in this
-  repo, not taken from docs prose.
+  `safeParse`/`treeifyError` directly against an installed zod v4, not taken
+  from docs prose.

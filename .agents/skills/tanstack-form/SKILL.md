@@ -5,10 +5,6 @@ description: Reference for `@tanstack/react-form` v1 — `useForm`, the `form.Fi
 
 # `@tanstack/react-form` v1 — standalone forms
 
-Reference implementation in this repo:
-[`src/examples/FormValidationExample.tsx`](../../../src/examples/FormValidationExample.tsx)
-— a Mantine "New Employee" form validated with zod.
-
 ## Setup
 
 ```bash
