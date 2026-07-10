@@ -1,6 +1,6 @@
 ---
 name: tanstack-form
-description: Reference for `@tanstack/react-form` v1 — `useForm`, the `form.Field` render-prop pattern, wiring Mantine controlled inputs, Standard Schema validation with zod (no adapter package needed), the field-level-vs-form-level validator split, and `form.Subscribe`/`useStore` for scoped re-renders. Use whenever building or editing a form with `@tanstack/react-form`, e.g. files that call `useForm` or render `form.Field`. For editable-table-cell composition (a `form.AppField` per cell of a `@tanstack/react-table` row), use `npx @tanstack/intent@latest load @tanstack/react-table#react/compose-with-tanstack-form` instead — this skill covers standalone forms. For the zod side of validation, see the `zod` skill.
+description: Reference for `@tanstack/react-form` v1 — `useForm`, the `form.Field` render-prop pattern, wiring Mantine controlled inputs, Standard Schema validation with zod (no adapter package needed), the field-level-vs-form-level validator split, and `form.Subscribe`/`useStore` for scoped re-renders. Use whenever building or editing a form with `@tanstack/react-form`, e.g. files that call `useForm` or render `form.Field`. For editable-table-cell composition (a `form.AppField` per cell of a `@tanstack/react-table` row), use `npx @tanstack/intent@latest load @tanstack/react-table#react/compose-with-tanstack-form` instead — this skill covers standalone forms. For the zod side of validation, see the `zod` skill; for createFormHook/withForm composition, array fields, async and linked-field validation, see the `tanstack-form-composition` skill.
 ---
 
 # `@tanstack/react-form` v1 — standalone forms
@@ -189,16 +189,15 @@ states), the latter is what a *passing* validation guarantees.
 touched, dirty). No argument needed for the common case; pass a partial
 object to reset to different values.
 
-## Reusable field components and array fields
+## Reusable field components, array fields, async/linked validation
 
-Not covered in depth here — for the createFormHook / createFormHookContexts
-pattern (registering `TextField`/`NumberField`/etc. once and reusing them
-across a codebase) and array-field mutation (`form.pushFieldValue`,
-`form.removeFieldValue`, subscribing to `data.length` instead of the whole
-array to avoid re-render storms), see
-`npx @tanstack/intent@latest load @tanstack/react-table#react/compose-with-tanstack-form`
-— it's framed around editable table cells but the form-side patterns
-(`createFormHook`, `useStore` scoping, array mutation) are general.
+Not covered here — see the `tanstack-form-composition` skill for
+`createFormHook`/`createFormHookContexts` (registering Mantine-wrapping
+`TextField`/etc. once), `withForm`/`formOptions` form splitting, array
+fields and their mutators, `onChangeListenTo` linked fields, debounced
+`onChangeAsync` validators, and mapping server errors onto fields with
+`onSubmitAsync`. For editable cells inside a `@tanstack/react-table`, also
+load `npx @tanstack/intent@latest load @tanstack/react-table#react/compose-with-tanstack-form`.
 
 ## Sources
 
