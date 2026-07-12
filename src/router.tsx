@@ -21,6 +21,7 @@ import {
   filteringPinningSearch,
 } from "./examples/FilteringPinningExample";
 import { FormValidationExample } from "./examples/FormValidationExample";
+import { QueryBuilderExample } from "./examples/query-builder/QueryBuilderExample";
 import {
   GroupingPaginationExample,
   groupingPaginationSearch,
@@ -157,6 +158,12 @@ export const formValidationRoute = createRoute({
   component: FormValidationExample,
 });
 
+export const queryBuilderRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/query-builder",
+  component: QueryBuilderExample,
+});
+
 // The original URL-sync deep-dive keeps its pre-unification path so old
 // deep links (and its fallback-store demo flow) survive unchanged.
 export const tableSyncRoute = createRoute({
@@ -185,6 +192,7 @@ const routeTree = rootRoute.addChildren([
   virtualizedExpandableRoute,
   groupingPaginationRoute,
   formValidationRoute,
+  queryBuilderRoute,
   tableSyncRoute,
   elsewhereRoute,
 ]);

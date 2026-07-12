@@ -62,6 +62,11 @@ const FORM_LINKS: NavItem[] = [
     label: "Employee Form",
     description: "TanStack Form + Zod validation",
   },
+  {
+    to: "/query-builder",
+    label: "Query Builder",
+    description: "Car search · dynamic attributes, grouped validation",
+  },
 ];
 
 const URL_SYNC_LINKS: NavItem[] = [
