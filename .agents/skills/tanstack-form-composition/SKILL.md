@@ -1,6 +1,6 @@
 ---
 name: tanstack-form-composition
-description: Advanced `@tanstack/react-form` v1 patterns beyond a single ad-hoc form — `createFormHook`/`createFormHookContexts` for reusable typed Mantine field components (`form.AppField`, `field.TextField`), `withForm`/`formOptions` for splitting large forms, array fields (`mode="array"`, `pushValue`/`removeValue`, `people[${i}].name` sub-field names), linked-field validation (`onChangeListenTo`), debounced async validators (`onChangeAsync` + `onChangeAsyncDebounceMs`), and mapping server-side submit errors onto fields (`onSubmitAsync` returning `{ fields }`). Use when building an app's shared form infrastructure, a multi-section or dynamic-list form, or wiring server validation errors. For single-form basics (`useForm`, `form.Field` wiring, zod, error display) see the `tanstack-form` skill first.
+description: Advanced `@tanstack/react-form` v1 patterns beyond a single ad-hoc form — `createFormHook`/`createFormHookContexts` for reusable typed Mantine field components (`form.AppField`, `field.TextField`), `withForm`/`formOptions` for splitting large forms, `withFieldGroup` for reusable multi-field blocks with group-relative names mountable at any path, array fields (`mode="array"`, `pushValue`/`removeValue`, `people[${i}].name` sub-field names), linked-field validation (`onChangeListenTo`), debounced async validators (`onChangeAsync` + `onChangeAsyncDebounceMs`), and mapping server-side submit errors onto fields (`onSubmitAsync` returning `{ fields }`). Use when building an app's shared form infrastructure, a multi-section or dynamic-list form, or wiring server validation errors. For single-form basics (`useForm`, `form.Field` wiring, zod, error display) see the `tanstack-form` skill first.
 ---
 
 # `@tanstack/react-form` v1 — composition & advanced patterns
@@ -118,6 +118,68 @@ output showed the parent's runtime values everywhere; the `withForm` values
 never appeared. They exist so `form.AppField name="..."` type-checks inside
 the section without re-declaring generics. Spread the shared `formOptions`
 into both so they can't drift.
+
+## `withFieldGroup`: reusable multi-field blocks — verified
+
+`withForm` splits one specific form; `withFieldGroup` (also returned by
+`createFormHook`) defines a **reusable block of several related fields**
+with *group-relative* names, mountable at any path of any form whose values
+contain that shape — the form-level analogue of extracting a component:
+
+```tsx
+const { useAppForm, withForm, withFieldGroup } = createFormHook({ ... });
+
+type ConditionDraft = { operator: string | null; value: string };
+
+const ConditionBlock = withFieldGroup({
+  // The block's value SHAPE (type-checks the relative names below).
+  defaultValues: { operator: null, value: "" } as ConditionDraft,
+  // Extra props, declared by type assertion:
+  props: {} as { label?: string },
+  render: function ConditionBlockRender({ group, label }) {
+    return (
+      <>
+        {label !== undefined && <Text size="sm">{label}</Text>}
+        <group.AppField
+          name="operator" // RELATIVE — not "price.operator"
+          listeners={{
+            // Dependent-field reset, also group-relative: clear the value
+            // whenever the operator changes, wherever the block is mounted.
+            onChange: () => group.setFieldValue("value", ""),
+          }}
+        >
+          {(field) => <field.OperatorSelect />}
+        </group.AppField>
+        <group.AppField name="value">
+          {(field) => (
+            // group.Subscribe selectors are group-relative too:
+            <group.Subscribe selector={(state) => state.values.operator}>
+              {(operator) => <field.ValueInput placeholder={operator ?? "Value"} />}
+            </group.Subscribe>
+          )}
+        </group.AppField>
+      </>
+    );
+  },
+});
+```
+
+Mount it with `form` plus a `fields` path prefix — a top-level key, a nested
+path, or an array element all work:
+
+```tsx
+<ConditionBlock form={form} fields="price" label="Price" />
+<ConditionBlock form={form} fields={`conditions[${index}]`} />
+<ConditionBlock form={form} fields="engine.cylinderVolume" />
+```
+
+Inside the block, `group.AppField`, `group.Subscribe`,
+`group.setFieldValue`, and validators all resolve relative to the mount
+point — the block never knows where it lives, which is exactly what makes
+it reusable across a dynamic list, a keyed record of subforms, and a
+standalone form alike. Like `withForm`, the `defaultValues` type-check the
+relative field names; runtime values come from the parent form at the
+mounted path.
 
 ## Array fields
 
