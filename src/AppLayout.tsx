@@ -67,6 +67,11 @@ const FORM_LINKS: NavItem[] = [
     label: "Query Builder",
     description: "Car search · dynamic attributes, grouped validation",
   },
+  {
+    to: "/multi-action-search-form",
+    label: "Multi-Action Search",
+    description: "One form · Search vs Save search, per-intent validation",
+  },
 ];
 
 const URL_SYNC_LINKS: NavItem[] = [
