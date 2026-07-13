@@ -6,8 +6,12 @@ description: Pattern for a single TanStack Form driving two or more submit actio
 # One form, many actions, many schemas
 
 Runnable demonstration of everything here:
-[src/examples/MultiActionSearchFormExample.tsx](../../../src/examples/MultiActionSearchFormExample.tsx)
-(a "Search" vs "Save search" form, wired into the app's `/multi-action-form` route).
+[examples/MultiActionSearchFormExample.tsx](examples/MultiActionSearchFormExample.tsx)
+(same folder as this file — a "Search" vs "Save search" form). The identical
+component is also wired into this repo's example app at
+`src/examples/MultiActionSearchFormExample.tsx`, reachable via the "Multi-Action
+Search" nav entry / `/multi-action-search-form` route, if you want to click
+through it live instead of just reading it.
 
 ## The model
 
@@ -168,4 +172,4 @@ Two APIs here have moved between versions. Read the shipped `.d.ts`, don't trust
 ## Sources
 
 - `@tanstack/react-form` / `@tanstack/form-core` v1.33, zod v4.4.3 — `onSubmitMeta`, `handleSubmit(meta)`, and `setErrorMap`'s `GlobalFormValidationError` shape confirmed directly against the shipped `.d.ts` files in this repo's `node_modules`. The `.required()` message-override behavior above was verified by running `safeParse` against a live schema built with the installed zod version, not taken from docs prose.
-- Working example in this repo: [src/examples/MultiActionSearchFormExample.tsx](../../../src/examples/MultiActionSearchFormExample.tsx).
+- Working example in this folder: [examples/MultiActionSearchFormExample.tsx](examples/MultiActionSearchFormExample.tsx).
